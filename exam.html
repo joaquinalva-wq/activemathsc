@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluación - Active Maths Championship</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        .nav-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2rem;
+            gap: 1rem;
+        }
+        .saving-indicator {
+            font-size: 0.84rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            min-width: 90px;
+            justify-content: center;
+        }
+        .saving-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse-dot 1.4s ease infinite;
+            flex-shrink: 0;
+        }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+        .welcome-rules {
+            background: var(--primary-light);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid rgba(26,110,232,0.15);
+            text-align: left;
+        }
+        .rule-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+        .rule-item:last-child { margin-bottom: 0; }
+        .rule-icon { flex-shrink: 0; margin-top: 0.1rem; }
+
+        .finished-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .finished-details {
+            background: #F0FDF4;
+            border: 1px solid #BBF7D0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            color: #166534;
+        }
+
+        .loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .loading-screen p { color: var(--text-muted); font-size: 1rem; margin: 0; }
+
+        /* Timer always on top right — explicitly forced visible */
+        #timerDisplay {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+        #timerDisplay.hidden-timer { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="loading-screen">
+        <div class="loader"></div>
+        <p>Cargando evaluación…</p>
+    </div>
+
+    <div class="container hidden" id="mainContainer" style="max-width: 860px;">
+
+        <!-- Header siempre visible con nombre y cronómetro -->
+        <header class="no-print">
+            <div>
+                <h2 id="userNameDisplay">—</h2>
+                <p id="userCategoryDisplay" style="margin:0;">Cargando…</p>
+            </div>
+            <!-- El cronómetro usa clase .timer del CSS; se oculta SOLO al finalizar -->
+            <div id="timerDisplay" class="timer">—:——</div>
+        </header>
+
+        <div id="warningBanner" class="warning-banner hidden">
+            ⚠️ Atención: saliste de esta ventana. El sistema lo registró.
+        </div>
+
+        <!-- ── Pantalla de instrucciones ────────────── -->
+        <div id="welcomeScreen" class="glass-card text-center hidden">
+            <div class="brand-bar"></div>
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📐</div>
+            <h1>Active Maths Championship</h1>
+            <p style="font-size: 1.05rem;">Leé las instrucciones antes de comenzar.</p>
+
+            <div class="welcome-rules">
+                <div class="rule-item">
+                    <span class="rule-icon">⏱</span>
+                    <span>Tenés <strong id="durationLabel">80 minutos</strong> para resolver todos los problemas.</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-icon">✍️</span>
+                    <span>Escribí la <strong>respuesta final</strong> en el campo de respuesta y explicá el proceso en la justificación.</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-icon">💾</span>
+                    <span>Las respuestas se <strong>guardan automáticamente</strong> cada vez que avanzás o salís de un campo.</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-icon">🔒</span>
+                    <span>Una vez que enviás la evaluación, <strong>no podés modificarla</strong>.</span>
+                </div>
+                <div class="rule-item">
+                    <span class="rule-icon">🚫</span>
+                    <span>No cambies de pestaña ni salgas de la ventana durante la evaluación.</span>
+                </div>
+            </div>
+
+            <button id="startBtn" class="btn btn-primary mt-4" style="font-size: 1.05rem; padding: 1rem 3rem;">
+                Comenzar Evaluación
+            </button>
+        </div>
+
+        <!-- ── Pantalla de examen ────────────────────── -->
+        <div id="examScreen" class="hidden">
+            <div id="progressDots" class="exam-progress"></div>
+
+            <div class="glass-card">
+                <h3 id="questionCounter">Problema 1 de 4</h3>
+
+                <div class="question-container">
+                    <div id="questionText" class="question-text">Cargando pregunta…</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="answerInput">Respuesta Final</label>
+                    <input type="text" id="answerInput" placeholder="Escribí solo el resultado (ej: 45 o A=1, B=9)">
+                </div>
+
+                <div class="form-group">
+                    <label for="justificationInput">Proceso y Justificación</label>
+                    <textarea id="justificationInput" rows="7"
+                        placeholder="Explicá detalladamente cómo llegaste a la respuesta. Mostrá cada paso del razonamiento…"></textarea>
+                </div>
+
+                <div class="nav-row">
+                    <button id="prevBtn" class="btn btn-secondary">← Anterior</button>
+                    <div class="saving-indicator" id="savingIndicator"></div>
+                    <button id="nextBtn" class="btn btn-primary">Siguiente →</button>
+                    <button id="finishBtn" class="btn btn-danger hidden">Enviar Evaluación</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Pantalla de completado ────────────────── -->
+        <div id="finishedScreen" class="glass-card hidden text-center">
+            <div class="finished-icon">🏆</div>
+            <h1>¡Evaluación Completada!</h1>
+            <p>Tus respuestas fueron enviadas correctamente. Los resultados serán revisados por el equipo docente.</p>
+            <div class="finished-details">
+                ✅ Tu entrega quedó registrada. Podés cerrar esta ventana de forma segura.
+            </div>
+            <button class="btn btn-secondary mt-4" id="logoutBtn">Cerrar Sesión</button>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { auth, onAuthStateChanged, signOut, DB, CATEGORIES } from './js/data.js';
+
+        let currentUserData = null;
+        let currentUser     = null;
+        let questions       = [];
+        let currentQuestionIndex = 0;
+        let answers         = [];
+        let timeLeft        = 80 * 60;   // default; overridden by Firestore config
+        let timerInterval   = null;
+
+        // ── DOM refs ─────────────────────────────────
+        const loadingOverlay     = document.getElementById('loadingOverlay');
+        const mainContainer      = document.getElementById('mainContainer');
+        const welcomeScreen      = document.getElementById('welcomeScreen');
+        const examScreen         = document.getElementById('examScreen');
+        const questionText       = document.getElementById('questionText');
+        const answerInput        = document.getElementById('answerInput');
+        const justificationInput = document.getElementById('justificationInput');
+        const prevBtn            = document.getElementById('prevBtn');
+        const nextBtn            = document.getElementById('nextBtn');
+        const finishBtn          = document.getElementById('finishBtn');
+        const savingIndicator    = document.getElementById('savingIndicator');
+        const progressDots       = document.getElementById('progressDots');
+        const timerEl            = document.getElementById('timerDisplay');
+
+        // ── Auth ──────────────────────────────────────
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = 'index.html'; return; }
+
+            currentUser     = user;
+            currentUserData = await DB.getUser(user.uid);
+            if (!currentUserData) { window.location.href = 'index.html'; return; }
+
+            document.getElementById('userNameDisplay').textContent =
+                `${currentUserData.firstName} ${currentUserData.lastName}`;
+            document.getElementById('userCategoryDisplay').textContent =
+                `${CATEGORIES.find(c => c.id === currentUserData.category)?.name || currentUserData.category} · ${currentUserData.school}`;
+
+            // Cargar preguntas y configuración en paralelo
+            const [loadedQs, config] = await Promise.all([
+                DB.getQuestions(currentUserData.category),
+                DB.getConfig()
+            ]);
+            questions = loadedQs;
+
+            // Establecer duración desde configuración
+            const configuredMinutes = config.examDurationMinutes || 80;
+            timeLeft = configuredMinutes * 60;
+
+            // Mostrar duración en pantalla de instrucciones
+            document.getElementById('durationLabel').textContent = `${configuredMinutes} minutos`;
+
+            // Mostrar timer con tiempo inicial ANTES de que empiece
+            updateTimerDisplay();
+
+            // Mostrar contenedor principal (timer ya es visible aquí)
+            loadingOverlay.classList.add('hidden');
+            mainContainer.classList.remove('hidden');
+
+            // Revisar estado guardado
+            const savedState = await DB.getExamState(user.uid);
+
+            if (savedState?.finished) {
+                // Ya entregó — mostrar pantalla de completado, ocultar timer
+                document.getElementById('finishedScreen').classList.remove('hidden');
+                timerEl.classList.add('hidden-timer');
+                return;
+            }
+
+            if (savedState?.answers) {
+                // Retomar examen en progreso
+                answers              = savedState.answers;
+                currentQuestionIndex = savedState.currentQuestionIndex || 0;
+                // El tiempo guardado tiene prioridad sobre la configuración
+                timeLeft = (savedState.timeLeft != null) ? savedState.timeLeft : timeLeft;
+                updateTimerDisplay();
+                startExam(true);
+            } else {
+                // Primer ingreso — mostrar instrucciones
+                questions.forEach(q => answers.push({ qId: q.id, answer: '', justification: '' }));
+                welcomeScreen.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+        document.getElementById('startBtn').addEventListener('click', () => startExam(false));
+
+        // ── Timer ─────────────────────────────────────
+        function updateTimerDisplay() {
+            const remaining = Math.max(0, timeLeft);
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            timerEl.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            if (remaining <= 300 && remaining > 0) {
+                timerEl.classList.add('danger');
+            } else {
+                timerEl.classList.remove('danger');
+            }
+        }
+
+        function startTimer() {
+            // Asegurar que el timer sea visible
+            timerEl.classList.remove('hidden');
+            timerEl.classList.remove('hidden-timer');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                // Auto-guardar cada 30 segundos
+                if (timeLeft % 30 === 0 && timeLeft > 0) saveState();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    submitExam();
+                }
+            }, 1000);
+        }
+
+        // ── Exam start ────────────────────────────────
+        function startExam(isResume = false) {
+            welcomeScreen.classList.add('hidden');
+            examScreen.classList.remove('hidden');
+            if (!isResume) {
+                try { document.documentElement.requestFullscreen(); } catch (_) {}
+            }
+            startTimer();
+            loadQuestion(currentQuestionIndex);
+        }
+
+        // ── State persistence ─────────────────────────
+        async function saveState() {
+            showSaving(true);
+            if (answers[currentQuestionIndex]) {
+                answers[currentQuestionIndex].answer        = answerInput.value;
+                answers[currentQuestionIndex].justification = justificationInput.value;
+            }
+            await DB.saveExamState(currentUser.uid, {
+                answers, currentQuestionIndex, timeLeft,
+                updatedAt: new Date().toISOString()
+            });
+            showSaving(false);
+        }
+
+        function showSaving(active) {
+            if (active) {
+                savingIndicator.innerHTML = '<div class="saving-dot"></div> Guardando…';
+            } else {
+                savingIndicator.innerHTML = '✓ Guardado';
+                setTimeout(() => { savingIndicator.innerHTML = ''; }, 2000);
+            }
+        }
+
+        // ── Question rendering ────────────────────────
+        function loadQuestion(index) {
+            const q = questions[index];
+            document.getElementById('questionCounter').textContent =
+                `Problema ${index + 1} de ${questions.length}`;
+
+            questionText.textContent = q.text;
+            answerInput.value        = answers[index]?.answer        || '';
+            justificationInput.value = answers[index]?.justification || '';
+
+            prevBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
+
+            if (index === questions.length - 1) {
+                nextBtn.classList.add('hidden');
+                finishBtn.classList.remove('hidden');
+            } else {
+                nextBtn.classList.remove('hidden');
+                finishBtn.classList.add('hidden');
+            }
+
+            renderProgressDots();
+            if (window.MathJax) MathJax.typesetPromise([questionText]);
+            examScreen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderProgressDots() {
+            progressDots.innerHTML = '';
+            questions.forEach((_, i) => {
+                const dot = document.createElement('button');
+                dot.className = 'progress-dot';
+                dot.textContent = i + 1;
+                if (i === currentQuestionIndex)           dot.classList.add('current');
+                else if (answers[i]?.answer?.trim())      dot.classList.add('answered');
+                dot.addEventListener('click', async () => {
+                    if (i !== currentQuestionIndex) {
+                        await saveState();
+                        currentQuestionIndex = i;
+                        loadQuestion(currentQuestionIndex);
+                    }
+                });
+                progressDots.appendChild(dot);
+            });
+        }
+
+        // ── Navigation ────────────────────────────────
+        prevBtn.addEventListener('click', async () => {
+            await saveState(); currentQuestionIndex--; loadQuestion(currentQuestionIndex);
+        });
+
+        nextBtn.addEventListener('click', async () => {
+            await saveState(); currentQuestionIndex++; loadQuestion(currentQuestionIndex);
+        });
+
+        answerInput.addEventListener('blur', saveState);
+        justificationInput.addEventListener('blur', saveState);
+
+        finishBtn.addEventListener('click', async () => {
+            const unanswered = answers.filter(a => !a.answer?.trim()).length;
+            const msg = unanswered > 0
+                ? `Tenés ${unanswered} pregunta/s sin responder. ¿Querés enviar igual? Esta acción no se puede deshacer.`
+                : '¿Confirmás el envío de tu evaluación? Esta acción no se puede deshacer.';
+            if (confirm(msg)) await submitExam();
+        });
+
+        // ── Submission ────────────────────────────────
+        async function submitExam() {
+            finishBtn.textContent = 'Enviando…';
+            finishBtn.disabled    = true;
+            if (timerInterval) clearInterval(timerInterval);
+            await saveState();
+
+            let correct = 0;
+            answers.forEach(ans => {
+                const q = questions.find(qu => qu.id === ans.qId);
+                if (q && ans.answer?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) {
+                    correct++;
+                }
+            });
+
+            await DB.saveSubmission(currentUser.uid, {
+                user:       currentUserData,
+                answers,
+                submittedAt: new Date().toISOString(),
+                autoGrade:  { score: correct, total: questions.length }
+            });
+
+            examScreen.classList.add('hidden');
+            document.getElementById('finishedScreen').classList.remove('hidden');
+            timerEl.classList.add('hidden-timer');
+        }
+
+        // ── Visibility change detection ───────────────
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' &&
+                !examScreen.classList.contains('hidden')) {
+                document.getElementById('warningBanner').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

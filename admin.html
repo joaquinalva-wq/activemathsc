@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin · Active Maths Championship</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { display: block; padding: 0; }
+
+        /* ── Exercise editor ──────── */
+        .exercise-edit-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid rgba(226,232,240,0.8);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            outline: none;
+            background: rgba(255,255,255,0.95);
+            color: var(--text-main);
+            resize: vertical;
+            transition: border-color 0.2s;
+            margin-top: 0.5rem;
+            min-height: 80px;
+        }
+        .exercise-edit-field:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+        .exercise-answer-input {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border: 2px solid rgba(226,232,240,0.8);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            outline: none;
+            background: rgba(255,255,255,0.95);
+            color: var(--text-main);
+            transition: border-color 0.2s;
+            margin-top: 0.5rem;
+        }
+        .exercise-answer-input:focus { border-color: var(--success); box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+
+        /* ── Stats table ──────────── */
+        .stat-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .stat-table th, .stat-table td { padding: 0.75rem 1rem; border-bottom: 1px solid #F1F5F9; text-align: left; }
+        .stat-table th { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+        .stat-table tbody tr:hover { background: #F8FAFC; }
+        .stat-table td:first-child { font-weight: 600; }
+
+        /* ── Detail modal ─────────── */
+        .answer-block {
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .answer-block h4 {
+            color: var(--primary);
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .answer-block .q-text { font-size: 0.95rem; color: var(--text-main); line-height: 1.6; margin-bottom: 1rem; font-weight: 600; }
+        .answer-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+        .justification-box {
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            font-size: 0.9rem;
+            white-space: pre-line;
+            color: var(--text-main);
+            min-height: 50px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* ── Classified export info ── */
+        .export-info {
+            background: var(--primary-light);
+            border: 1px solid rgba(79,70,229,0.2);
+            border-radius: 12px;
+            padding: 1.1rem 1.25rem;
+            font-size: 0.9rem;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+        .export-info span { line-height: 1.5; }
+
+        /* ── Toast ──── */
+        #toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            padding: 0.85rem 1.5rem; border-radius: 12px;
+            font-size: 0.9rem; font-weight: 600;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            z-index: 9999;
+            transform: translateY(100px); opacity: 0;
+            transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+            color: white;
+        }
+        #toast.show { transform: translateY(0); opacity: 1; }
+        #toast.success { background: var(--success); }
+        #toast.error   { background: var(--accent); }
+        #toast.info    { background: var(--primary); }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     LOGIN OVERLAY
+════════════════════════════════════════════════ -->
+<div id="loginOverlay" class="login-overlay">
+    <div style="animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1); width: 100%; max-width: 440px; padding: 1rem;">
+        <div class="glass-card text-center">
+            <div style="font-size: 3rem; margin-bottom: 0.5rem;">🏆</div>
+            <h2>Panel Administrativo</h2>
+            <p>Acceso exclusivo para docentes y coordinadores del Active Maths Championship.</p>
+            <button id="adminLoginBtn" class="google-btn" style="width: 100%; margin-top: 1rem;">
+                <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/>
+                    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                    <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                </svg>
+                Iniciar Sesión con Google
+            </button>
+            <p style="margin-top: 1.5rem; font-size: 0.8rem; margin-bottom: 0;">
+                <a href="index.html" style="color: var(--text-muted); text-decoration: none;">← Volver al inicio</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.google-btn {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    padding: 0.95rem 1.5rem; background: white; color: #3C4043;
+    border: 1.5px solid #DADCE0; border-radius: 12px;
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+    transition: all 0.25s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.google-btn:hover { border-color: #4285F4; box-shadow: 0 4px 12px rgba(66,133,244,0.2); transform: translateY(-1px); }
+</style>
+
+<!-- ════════════════════════════════════════════════
+     MAIN ADMIN PANEL
+════════════════════════════════════════════════ -->
+<div id="mainAdmin" class="hidden">
+
+    <!-- Sticky header -->
+    <div class="admin-header no-print">
+        <div class="admin-header-left">
+            <span class="admin-logo">🏆</span>
+            <div>
+                <h2>Active Maths Championship</h2>
+                <p>Panel de Administración</p>
+            </div>
+        </div>
+        <div class="admin-header-right">
+            <span class="admin-email" id="adminEmail"></span>
+            <button id="logoutBtn" class="btn btn-secondary btn-sm">Cerrar Sesión</button>
+        </div>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="tab-nav no-print">
+        <button class="tab-btn active" data-tab="results">
+            📋 Resultados <span class="tab-count" id="countResults">0</span>
+        </button>
+        <button class="tab-btn" data-tab="stats">
+            📊 Estadísticas
+        </button>
+        <button class="tab-btn" data-tab="exercises">
+            ✏️ Ejercicios
+        </button>
+        <button class="tab-btn" data-tab="classified">
+            🏅 Clasificados <span class="tab-count" id="countClassified">0</span>
+        </button>
+        <button class="tab-btn" data-tab="config">
+            ⚙️ Configuración
+        </button>
+    </div>
+
+    <!-- Tab content area -->
+    <div class="tab-content">
+
+        <!-- ── Loading state ──────────────────────── -->
+        <div id="loadingMsg" class="text-center" style="padding: 3rem 0;">
+            <div class="loader"></div>
+            <p class="mt-2">Cargando datos de la base de datos…</p>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+             TAB: RESULTADOS
+        ══════════════════════════════════════════ -->
+        <div class="tab-pane hidden" id="tab-results">
+
+            <!-- Filters -->
+            <div class="glass-card" style="margin-bottom: 1.5rem;">
+                <div class="filters-row">
+                    <div class="filter-group">
+                        <label>Colegio</label>
+                        <select id="filterSchool"><option value="">Todos los colegios</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Categoría</label>
+                        <select id="filterCategory"><option value="">Todas las categorías</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ejercicio</label>
+                        <select id="filterExercise"><option value="">Todos los ejercicios</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Estado</label>
+                        <select id="filterStatus">
+                            <option value="">Todos</option>
+                            <option value="perfect">Perfectos (todas correctas)</option>
+                            <option value="partial">Con aciertos parciales</option>
+                            <option value="zero">Sin aciertos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Ordenar por</label>
+                        <select id="filterSort">
+                            <option value="date_desc">Fecha (más reciente)</option>
+                            <option value="date_asc">Fecha (más antiguo)</option>
+                            <option value="score_desc">Puntaje (mayor)</option>
+                            <option value="score_asc">Puntaje (menor)</option>
+                            <option value="name">Nombre A–Z</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Summary bar -->
+                <div class="summary-bar" id="summaryBar"></div>
+            </div>
+
+            <!-- Table -->
+            <div class="glass-card" style="padding: 0; overflow: hidden;">
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Estudiante</th>
+                                <th>Colegio</th>
+                                <th>Categoría</th>
+                                <th id="scoreColHeader">Puntaje</th>
+                                <th id="exerciseColHeader" class="hidden">Respuesta ejercicio</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+             TAB: ESTADÍSTICAS
+        ══════════════════════════════════════════ -->
+        <div class="tab-pane hidden" id="tab-stats">
+
+            <!-- Summary cards -->
+            <div class="stats-grid" id="statsCards"></div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex-wrap: wrap;">
+
+                <!-- By exercise -->
+                <div class="glass-card">
+                    <div class="section-header">
+                        <h3>Resultados por Ejercicio</h3>
+                        <select id="statsCategory" style="padding: 0.4rem 0.8rem; border-radius: 8px; border: 1.5px solid #E2E8F0; font-size: 0.85rem; outline: none;">
+                            <option value="">Todas las categorías</option>
+                        </select>
+                    </div>
+                    <div id="exerciseStatsContainer"></div>
+                </div>
+
+                <!-- By school -->
+                <div class="glass-card">
+                    <div class="section-header">
+                        <h3>Resultados por Colegio</h3>
+                    </div>
+                    <table class="stat-table" id="schoolStatsTable">
+                        <thead>
+                            <tr>
+                                <th>Colegio</th>
+                                <th>Entregas</th>
+                                <th>Prom.</th>
+                                <th>Perfectos</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schoolStatsBody"></tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+             TAB: EJERCICIOS
+        ══════════════════════════════════════════ -->
+        <div class="tab-pane hidden" id="tab-exercises">
+            <div class="glass-card">
+                <div class="section-header">
+                    <h3>Gestión de Ejercicios</h3>
+                    <button class="btn btn-primary btn-sm" id="addExerciseBtn">+ Agregar Ejercicio</button>
+                </div>
+
+                <div style="background: #FEF9C3; border: 1px solid #FDE68A; border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: #92400E;">
+                    ⚠️ Los cambios se guardan en la base de datos y afectan a todos los exámenes futuros. Los exámenes ya enviados no se modifican.
+                </div>
+
+                <!-- Category pills -->
+                <div class="cat-pills" id="exerciseCatPills"></div>
+
+                <!-- Exercise list -->
+                <div id="exerciseList"></div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+             TAB: CLASIFICADOS
+        ══════════════════════════════════════════ -->
+        <div class="tab-pane hidden" id="tab-classified">
+            <div class="glass-card" style="margin-bottom: 1.5rem;">
+                <div class="section-header">
+                    <h3>Gestión de Clasificados</h3>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        <button id="exportBySchool" class="btn btn-primary btn-sm">📄 PDF por Colegio</button>
+                        <button id="exportAll"      class="btn btn-secondary btn-sm">📄 PDF Lista General</button>
+                    </div>
+                </div>
+
+                <div class="export-info">
+                    <span>🏅</span>
+                    <span>Marcá aquí a los estudiantes que clasifican a la siguiente fase. Los PDFs exportan únicamente los estudiantes marcados como clasificados.</span>
+                </div>
+
+                <div class="filters-row" style="margin-bottom: 1.5rem;">
+                    <div class="filter-group">
+                        <label>Colegio</label>
+                        <select id="classSchool"><option value="">Todos</option></select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Categoría</label>
+                        <select id="classCat"><option value="">Todas</option></select>
+                    </div>
+                    <div class="filter-group" style="justify-content: flex-end; flex-direction: row; align-items: flex-end; gap: 0.5rem;">
+                        <button id="classifyAll"   class="btn btn-success btn-sm">✓ Marcar todos</button>
+                        <button id="unclassifyAll" class="btn btn-secondary btn-sm">✗ Desmarcar todos</button>
+                    </div>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Estudiante</th>
+                                <th>Colegio</th>
+                                <th>Categoría</th>
+                                <th>Puntaje</th>
+                                <th>Clasificado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="classifiedBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════
+             TAB: CONFIGURACIÓN
+        ══════════════════════════════════════════ -->
+        <div class="tab-pane hidden" id="tab-config">
+            <div class="glass-card" style="max-width: 520px;">
+                <div class="section-header">
+                    <h3>Configuración del Examen</h3>
+                </div>
+
+                <div class="form-group">
+                    <label>Duración de la evaluación</label>
+                    <div style="display:flex; align-items:center; gap:0.9rem; margin-top:0.25rem;">
+                        <input type="number" id="configDuration" min="10" max="300" value="80"
+                               style="max-width:110px; font-size:1.3rem; font-weight:800; text-align:center; padding:0.6rem;">
+                        <span style="color:var(--text-muted); font-weight:700; font-size:1rem;">minutos</span>
+                    </div>
+                    <p style="font-size:0.82rem; margin-top:0.6rem; margin-bottom:0; color:var(--text-muted);">
+                        Aplica a los exámenes que aún no comenzaron. Los exámenes en curso mantienen el tiempo guardado.
+                    </p>
+                </div>
+
+                <button id="saveConfigBtn" class="btn btn-primary" style="margin-top:0.5rem;">
+                    Guardar Configuración
+                </button>
+                <p id="configStatus" style="font-size:0.82rem; margin-top:0.75rem; margin-bottom:0; color:var(--success); display:none;">
+                    ✓ Configuración guardada correctamente.
+                </p>
+            </div>
+        </div>
+
+    </div><!-- end tab-content -->
+</div><!-- end mainAdmin -->
+
+<!-- ══════════════════════════════════════════════
+     DETAIL MODAL
+══════════════════════════════════════════════ -->
+<div id="detailModal" class="modal hidden">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid #F1F5F9;">
+            <div>
+                <h2 id="modalTitle" style="margin:0;">Detalle de Examen</h2>
+                <p id="modalSubtitle" style="margin:0.25rem 0 0; font-size:0.85rem;"></p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="closeModal">✕ Cerrar</button>
+        </div>
+        <div id="modalContent"></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script type="module">
+import {
+    auth, provider, signInWithPopup, onAuthStateChanged, signOut,
+    DB, SCHOOLS, CATEGORIES, QUESTIONS_DB, CATEGORY_BASE_MAP
+} from './js/data.js';
+
+// ══ State ════════════════════════════════════════
+let allSubmissions   = [];
+let loadedQuestions  = {};  // { basico: [...], intermedio: [...], avanzado: [...], sol: [...] }
+let currentExCat     = 'basico';
+let editingIdx       = -1;  // index of exercise being edited
+
+const ALLOWED_EMAILS = [
+    'joaquin.alva@activelearning.com.ar',
+    'colaboradores.aprendizajes@activelearning.com.ar'
+];
+
+const BASE_CATS = ['basico', 'intermedio', 'avanzado', 'sol'];
+
+// ══ DOM refs ════════════════════════════════════
+const loginOverlay = document.getElementById('loginOverlay');
+const mainAdmin    = document.getElementById('mainAdmin');
+const loadingMsg   = document.getElementById('loadingMsg');
+
+// ══ Auth ════════════════════════════════════════
+document.getElementById('adminLoginBtn').addEventListener('click', () => {
+    signInWithPopup(auth, provider).catch(e => alert(e.message));
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+
+document.getElementById('closeModal').addEventListener('click', () =>
+    document.getElementById('detailModal').classList.add('hidden')
+);
+
+onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+        loginOverlay.classList.remove('hidden');
+        mainAdmin.classList.add('hidden');
+        return;
+    }
+
+    if (!ALLOWED_EMAILS.includes(user.email)) {
+        alert('Acceso denegado. Este correo no tiene permisos de administrador.');
+        await signOut(auth);
+        return;
+    }
+
+    loginOverlay.classList.add('hidden');
+    mainAdmin.classList.remove('hidden');
+    document.getElementById('adminEmail').textContent = user.email;
+
+    await loadData();
+});
+
+// ══ Data loading ════════════════════════════════
+async function loadData() {
+    loadingMsg.classList.remove('hidden');
+    try {
+        // Load questions and config in parallel
+        const [, config] = await Promise.all([
+            (async () => {
+                for (const cat of BASE_CATS) {
+                    loadedQuestions[cat] = await DB.getQuestions(cat);
+                }
+            })(),
+            DB.getConfig()
+        ]);
+
+        // Pre-fill config tab
+        document.getElementById('configDuration').value = config.examDurationMinutes || 80;
+        loadedQuestions['basico_a']     = loadedQuestions['basico'];
+        loadedQuestions['intermedio_a'] = loadedQuestions['intermedio'];
+        loadedQuestions['avanzado_a']   = loadedQuestions['avanzado'];
+
+        allSubmissions = await DB.getSubmissions();
+        allSubmissions.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+        loadingMsg.classList.add('hidden');
+        populateFilters();
+        updateCounts();
+        renderResults();
+        renderStats();
+        initExerciseTab();
+        renderClassified();
+        showTabs();
+    } catch (e) {
+        loadingMsg.innerHTML =
+            `<p style="color:var(--accent);">Error cargando datos: ${e.message}<br>Verificá las reglas de seguridad de Firestore.</p>`;
+    }
+}
+
+function showTabs() {
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+    document.getElementById('tab-results').classList.remove('hidden');
+}
+
+function updateCounts() {
+    document.getElementById('countResults').textContent   = allSubmissions.length;
+    document.getElementById('countClassified').textContent = allSubmissions.filter(s => s.classified).length;
+}
+
+// ══ Filter population ═══════════════════════════
+function populateFilters() {
+    const schoolIds   = ['filterSchool', 'classSchool'];
+    const categoryIds = ['filterCategory', 'classCat', 'statsCategory'];
+
+    schoolIds.forEach(id => {
+        const sel = document.getElementById(id);
+        SCHOOLS.forEach(s => { if (!sel.querySelector(`option[value="${s}"]`)) sel.add(new Option(s, s)); });
+    });
+
+    categoryIds.forEach(id => {
+        const sel = document.getElementById(id);
+        CATEGORIES.forEach(c => { if (!sel.querySelector(`option[value="${c.id}"]`)) sel.add(new Option(c.name, c.id)); });
+    });
+
+    // Exercise filter - rebuild on category change
+    rebuildExerciseFilter();
+}
+
+function rebuildExerciseFilter() {
+    const catFilter = document.getElementById('filterCategory').value;
+    const sel       = document.getElementById('filterExercise');
+    sel.innerHTML   = '<option value="">Todos los ejercicios</option>';
+
+    // Determine which questions to list
+    const cat = catFilter || 'basico';
+    const base = CATEGORY_BASE_MAP[cat] || cat;
+    const qs  = loadedQuestions[base] || loadedQuestions['basico'] || [];
+    qs.forEach((q, i) => sel.add(new Option(`Ejercicio ${i + 1}`, q.id)));
+
+    // Header in table
+    const exHeader = document.getElementById('exerciseColHeader');
+    if (sel.value) {
+        exHeader.textContent = `Ej. selec.`;
+        exHeader.classList.remove('hidden');
+    } else {
+        exHeader.classList.add('hidden');
+    }
+}
+
+// ══ Tab navigation ══════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tabName = btn.dataset.tab;
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+        document.getElementById('tab-' + tabName).classList.remove('hidden');
+        if (tabName === 'stats')      renderStats();
+        if (tabName === 'exercises')  renderExerciseList();
+        if (tabName === 'classified') renderClassified();
+    });
+});
+
+// ══ RESULTADOS TAB ══════════════════════════════
+['filterSchool','filterCategory','filterExercise','filterStatus','filterSort'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {
+        if (id === 'filterCategory') rebuildExerciseFilter();
+        renderResults();
+    });
+});
+
+function getFilteredResults() {
+    const school    = document.getElementById('filterSchool').value;
+    const cat       = document.getElementById('filterCategory').value;
+    const exercise  = document.getElementById('filterExercise').value;
+    const status    = document.getElementById('filterStatus').value;
+    const sort      = document.getElementById('filterSort').value;
+
+    let filtered = allSubmissions.filter(sub => {
+        if (school && sub.user?.school !== school) return false;
+        if (cat    && sub.user?.category !== cat)  return false;
+        if (status === 'perfect'  && sub.autoGrade.score !== sub.autoGrade.total) return false;
+        if (status === 'zero'     && sub.autoGrade.score !== 0) return false;
+        if (status === 'partial'  && (sub.autoGrade.score === 0 || sub.autoGrade.score === sub.autoGrade.total)) return false;
+        if (exercise) {
+            const ans = sub.answers?.find(a => a.qId === exercise);
+            if (!ans) return false;
+        }
+        return true;
+    });
+
+    filtered.sort((a, b) => {
+        switch (sort) {
+            case 'date_asc':   return new Date(a.submittedAt) - new Date(b.submittedAt);
+            case 'score_desc': return b.autoGrade.score - a.autoGrade.score;
+            case 'score_asc':  return a.autoGrade.score - b.autoGrade.score;
+            case 'name':       return (a.user.lastName + a.user.firstName).localeCompare(b.user.lastName + b.user.firstName);
+            default:           return new Date(b.submittedAt) - new Date(a.submittedAt);
+        }
+    });
+
+    return filtered;
+}
+
+function renderResults() {
+    const filtered    = getFilteredResults();
+    const exercise    = document.getElementById('filterExercise').value;
+    const exHeader    = document.getElementById('exerciseColHeader');
+    const tableBody   = document.getElementById('tableBody');
+
+    // Show/hide exercise column header
+    if (exercise) {
+        const qs   = loadedQuestions[CATEGORY_BASE_MAP[document.getElementById('filterCategory').value] || document.getElementById('filterCategory').value || 'basico'] || [];
+        const q    = qs.find(q => q.id === exercise);
+        const idx  = qs.indexOf(q);
+        exHeader.textContent = idx >= 0 ? `Ej. ${idx + 1}` : 'Ejercicio';
+        exHeader.classList.remove('hidden');
+    } else {
+        exHeader.classList.add('hidden');
+    }
+
+    // Summary bar
+    const perfect   = filtered.filter(s => s.autoGrade.score === s.autoGrade.total).length;
+    const reviewing = filtered.filter(s => s.autoGrade.score < s.autoGrade.total).length;
+    document.getElementById('summaryBar').innerHTML =
+        `<span>Total: <strong>${filtered.length}</strong></span>` +
+        `<span>Perfectos: <strong>${perfect}</strong></span>` +
+        `<span>Con revisión: <strong>${reviewing}</strong></span>`;
+
+    // Table rows
+    tableBody.innerHTML = '';
+    if (!filtered.length) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:2rem; color:var(--text-muted);">No hay resultados que coincidan con los filtros.</td></tr>';
+        return;
+    }
+
+    filtered.forEach(sub => {
+        const isPerfect   = sub.autoGrade.score === sub.autoGrade.total;
+        const isClassified = sub.classified;
+        const date        = new Date(sub.submittedAt).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+        const catName     = CATEGORIES.find(c => c.id === sub.user?.category)?.name || sub.user?.category || '—';
+        const score       = sub.autoGrade.score;
+        const total       = sub.autoGrade.total;
+        const pct         = total > 0 ? Math.round(score / total * 100) : 0;
+        const badgeCls    = isPerfect ? 'badge-correct' : (score > 0 ? 'badge-partial' : 'badge-incorrect');
+
+        let exerciseCell = '';
+        if (exercise) {
+            const ans  = sub.answers?.find(a => a.qId === exercise);
+            const base = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+            const q    = (loadedQuestions[base] || []).find(q => q.id === exercise);
+            if (ans && q) {
+                const ok = ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
+                exerciseCell = `<td>
+                    <span style="font-weight:600; color:${ok ? 'var(--success)' : 'var(--accent)'};">${ans.answer || '(vacío)'}</span>
+                    ${ok ? '<span style="color:var(--text-muted); font-size:0.75rem;"> ✓</span>' : ''}
+                </td>`;
+            } else {
+                exerciseCell = '<td><span style="color:var(--text-muted);">—</span></td>';
+            }
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-size:0.82rem; color:var(--text-muted);">${date}</td>
+            <td>
+                <div style="font-weight:600;">${sub.user.lastName || ''}, ${sub.user.firstName || ''}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">${sub.user.email || ''}</div>
+                ${isClassified ? '<span class="classified-badge active" style="margin-top:4px; cursor:default;">🏅 Clasificado</span>' : ''}
+            </td>
+            <td>${sub.user.school || '—'}</td>
+            <td style="font-size:0.82rem;">${catName}</td>
+            <td>
+                <span class="badge ${badgeCls}">${score} / ${total}</span>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:3px;">${pct}%</div>
+            </td>
+            ${exercise ? exerciseCell : ''}
+            <td style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm view-btn">Ver detalle</button>
+                <button class="btn btn-sm del-btn" title="Eliminar entrega"
+                    style="color:#B91C1C; border:1.5px solid rgba(239,68,68,0.3); background:rgba(239,68,68,0.06); border-radius:8px; padding:0.42rem 0.6rem; font-size:0.9rem; cursor:pointer; transition:all 0.18s;"
+                    onmouseover="this.style.background='rgba(239,68,68,0.14)'"
+                    onmouseout="this.style.background='rgba(239,68,68,0.06)'">🗑</button>
+            </td>
+        `;
+
+        tr.querySelector('.view-btn').addEventListener('click', () => viewDetails(sub));
+        tr.querySelector('.del-btn').addEventListener('click', async () => {
+            const name = `${sub.user.firstName || ''} ${sub.user.lastName || ''}`.trim();
+            if (!confirm(`¿Eliminar la entrega de ${name}?\n\nEsta acción no se puede deshacer y también borrará el estado del examen, permitiendo que el estudiante vuelva a rendir.`)) return;
+            try {
+                await DB.deleteSubmission(sub.user.uid);
+                allSubmissions = allSubmissions.filter(s => s.user.uid !== sub.user.uid);
+                updateCounts();
+                renderResults();
+                renderStats();
+                showToast(`Entrega de ${name} eliminada.`, 'info');
+            } catch (e) {
+                showToast('Error al eliminar: ' + e.message, 'error');
+            }
+        });
+        tableBody.appendChild(tr);
+    });
+}
+
+// ── Detail modal ──────────────────────────────
+function viewDetails(sub) {
+    const base  = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+    const qList = loadedQuestions[base] || [];
+    document.getElementById('modalTitle').textContent =
+        `${sub.user.lastName || ''}, ${sub.user.firstName || ''}`;
+    document.getElementById('modalSubtitle').textContent =
+        `${sub.user.school || ''} · ${CATEGORIES.find(c => c.id === sub.user.category)?.name || sub.user.category} · ${new Date(sub.submittedAt).toLocaleString('es-AR')}`;
+
+    let html = `<div style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem;">
+        <span class="badge ${sub.autoGrade.score === sub.autoGrade.total ? 'badge-correct' : 'badge-partial'}">
+            Puntaje: ${sub.autoGrade.score} / ${sub.autoGrade.total}
+        </span>
+        ${sub.classified ? '<span class="classified-badge active">🏅 Clasificado</span>' : ''}
+    </div>`;
+
+    (sub.answers || []).forEach((ans, i) => {
+        const q       = qList.find(qu => qu.id === ans.qId);
+        const isOk    = q && ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
+        html += `
+            <div class="answer-block">
+                <h4>Ejercicio ${i + 1}</h4>
+                <div class="q-text">${q ? esc(q.text) : '(Ejercicio no encontrado)'}</div>
+                <div class="answer-row">
+                    <span style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">Respuesta:</span>
+                    <span style="font-weight:700; font-size:1rem; color:${isOk ? 'var(--success)' : 'var(--accent)'};">
+                        ${ans.answer || '(sin respuesta)'}
+                        ${isOk ? ' ✓' : ' ✗'}
+                    </span>
+                    <span style="font-size:0.8rem; color:var(--text-muted);">
+                        Correcta: <strong>${q ? esc(q.correctAnswer) : '?'}</strong>
+                    </span>
+                </div>
+                <div style="font-size:0.82rem; color:var(--text-muted); font-weight:600; margin-bottom:0.4rem;">Justificación:</div>
+                <div class="justification-box">${ans.justification ? esc(ans.justification) : '<em style="color:var(--text-muted);">(sin justificación)</em>'}</div>
+            </div>`;
+    });
+
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('detailModal').classList.remove('hidden');
+    if (window.MathJax) MathJax.typesetPromise([document.getElementById('modalContent')]);
+}
+
+// ══ ESTADÍSTICAS TAB ════════════════════════════
+document.getElementById('statsCategory')?.addEventListener('change', renderStats);
+
+function renderStats() {
+    const catFilter = document.getElementById('statsCategory').value;
+
+    const relevant = catFilter
+        ? allSubmissions.filter(s => s.user?.category === catFilter)
+        : allSubmissions;
+
+    const total     = relevant.length;
+    const perfect   = relevant.filter(s => s.autoGrade.score === s.autoGrade.total).length;
+    const schools   = new Set(relevant.map(s => s.user?.school)).size;
+    const avgScore  = total > 0
+        ? (relevant.reduce((sum, s) => sum + (s.autoGrade.score / s.autoGrade.total || 0), 0) / total * 100).toFixed(1)
+        : 0;
+
+    document.getElementById('statsCards').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${total}</div>
+            <div class="stat-label">Entregas totales</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${perfect}</div>
+            <div class="stat-label">Puntaje perfecto</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${avgScore}%</div>
+            <div class="stat-label">Promedio general</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${schools}</div>
+            <div class="stat-label">Colegios presentes</div>
+        </div>
+    `;
+
+    // By exercise
+    renderExerciseStats(relevant, catFilter);
+
+    // By school
+    renderSchoolStats(relevant);
+}
+
+function renderExerciseStats(subs, catFilter) {
+    const container = document.getElementById('exerciseStatsContainer');
+    container.innerHTML = '';
+
+    // Collect all exercise IDs that appear in these submissions
+    const exMap = {};
+    subs.forEach(sub => {
+        const base = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+        const qs   = loadedQuestions[base] || [];
+        (sub.answers || []).forEach((ans, i) => {
+            const q = qs.find(q => q.id === ans.qId);
+            if (!exMap[ans.qId]) exMap[ans.qId] = { label: `Ej. ${i + 1}`, correct: 0, total: 0, catBase: base };
+            exMap[ans.qId].total++;
+            if (q && ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) {
+                exMap[ans.qId].correct++;
+            }
+        });
+    });
+
+    if (!Object.keys(exMap).length) {
+        container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:1rem;">No hay datos para mostrar.</p>';
+        return;
+    }
+
+    Object.values(exMap).forEach(ex => {
+        const pct = ex.total > 0 ? Math.round(ex.correct / ex.total * 100) : 0;
+        const barClass = pct >= 70 ? 'good' : (pct >= 40 ? 'warning' : 'danger');
+        container.innerHTML += `
+            <div class="progress-row">
+                <span class="progress-label">${ex.label}</span>
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill ${barClass}" style="width:${pct}%"></div>
+                </div>
+                <span class="progress-label-right">${pct}% <small style="color:var(--text-muted);">(${ex.correct}/${ex.total})</small></span>
+            </div>
+        `;
+    });
+}
+
+function renderSchoolStats(subs) {
+    const body = document.getElementById('schoolStatsBody');
+    const map  = {};
+
+    subs.forEach(sub => {
+        const school = sub.user?.school || '(sin colegio)';
+        if (!map[school]) map[school] = { count: 0, total: 0, max: 0, totalPossible: 0, perfect: 0 };
+        const score = sub.autoGrade.score;
+        const tot   = sub.autoGrade.total;
+        map[school].count++;
+        map[school].total += score;
+        map[school].totalPossible += tot;
+        if (score > map[school].max) map[school].max = score;
+        if (score === tot) map[school].perfect++;
+    });
+
+    const rows = Object.entries(map).sort((a, b) => {
+        const avgA = a[1].totalPossible ? a[1].total / a[1].totalPossible : 0;
+        const avgB = b[1].totalPossible ? b[1].total / b[1].totalPossible : 0;
+        return avgB - avgA;
+    });
+
+    body.innerHTML = rows.map(([school, s]) => {
+        const avg = s.totalPossible > 0 ? (s.total / s.totalPossible * 100).toFixed(1) + '%' : '—';
+        return `<tr>
+            <td>${school}</td>
+            <td><strong>${s.count}</strong></td>
+            <td>${avg}</td>
+            <td><span class="badge badge-correct">${s.perfect}</span></td>
+        </tr>`;
+    }).join('');
+}
+
+// ══ EJERCICIOS TAB ══════════════════════════════
+function initExerciseTab() {
+    const pills = document.getElementById('exerciseCatPills');
+    pills.innerHTML = '';
+    BASE_CATS.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'cat-pill' + (cat === currentExCat ? ' active' : '');
+        btn.textContent = { basico: 'Básico', intermedio: 'Intermedio', avanzado: 'Avanzado', sol: 'Sol' }[cat];
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            currentExCat = cat;
+            editingIdx   = -1;
+            renderExerciseList();
+        });
+        pills.appendChild(btn);
+    });
+    renderExerciseList();
+}
+
+function renderExerciseList() {
+    const list = document.getElementById('exerciseList');
+    const qs   = loadedQuestions[currentExCat] || [];
+    list.innerHTML = '';
+
+    qs.forEach((q, i) => {
+        const isEditing = editingIdx === i;
+        const div = document.createElement('div');
+        div.className = 'exercise-card' + (isEditing ? ' editing' : '');
+
+        if (!isEditing) {
+            div.innerHTML = `
+                <div class="exercise-card-header">
+                    <span class="exercise-number">${i + 1}</span>
+                    <div style="flex:1;">
+                        <div class="exercise-text-display">${esc(q.text)}</div>
+                        <div class="exercise-answer">Respuesta correcta: <strong>${esc(q.correctAnswer)}</strong></div>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-shrink:0;">
+                        <button class="btn btn-secondary btn-sm edit-ex-btn">Editar</button>
+                        <button class="btn btn-secondary btn-sm" style="color:var(--accent); border-color:var(--accent);" data-del="${i}">Eliminar</button>
+                    </div>
+                </div>`;
+
+            div.querySelector('.edit-ex-btn').addEventListener('click', () => {
+                editingIdx = i;
+                renderExerciseList();
+            });
+            div.querySelector('[data-del]').addEventListener('click', () => deleteExercise(i));
+        } else {
+            div.innerHTML = `
+                <div style="display:flex; gap:0.75rem; align-items:flex-start; margin-bottom:0.75rem;">
+                    <span class="exercise-number">${i + 1}</span>
+                    <div style="flex:1; font-size:0.85rem; font-weight:600; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; padding-top:8px;">Editando ejercicio</div>
+                </div>
+                <label style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Enunciado</label>
+                <textarea class="exercise-edit-field" id="editText_${i}" rows="4">${esc(q.text)}</textarea>
+                <label style="font-size:0.8rem; font-weight:600; color:var(--success); text-transform:uppercase; letter-spacing:0.5px; margin-top:0.75rem; display:block;">Respuesta correcta</label>
+                <input type="text" class="exercise-answer-input" id="editAnswer_${i}" value="${esc(q.correctAnswer)}">
+                <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+                    <button class="btn btn-success btn-sm save-ex-btn">✓ Guardar</button>
+                    <button class="btn btn-secondary btn-sm cancel-ex-btn">Cancelar</button>
+                </div>`;
+
+            div.querySelector('.save-ex-btn').addEventListener('click', () => saveExercise(i));
+            div.querySelector('.cancel-ex-btn').addEventListener('click', () => {
+                editingIdx = -1;
+                renderExerciseList();
+            });
+        }
+
+        list.appendChild(div);
+    });
+
+    if (!qs.length) {
+        list.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:2rem;">No hay ejercicios. Hacé clic en "+ Agregar Ejercicio".</p>';
+    }
+}
+
+async function saveExercise(i) {
+    const newText   = document.getElementById(`editText_${i}`).value.trim();
+    const newAnswer = document.getElementById(`editAnswer_${i}`).value.trim();
+    if (!newText || !newAnswer) { showToast('Completá el enunciado y la respuesta.', 'error'); return; }
+
+    const qs = [...(loadedQuestions[currentExCat] || [])];
+    qs[i] = { ...qs[i], text: newText, correctAnswer: newAnswer };
+    loadedQuestions[currentExCat] = qs;
+
+    try {
+        await DB.saveQuestions(currentExCat, qs);
+        editingIdx = -1;
+        renderExerciseList();
+        showToast('Ejercicio guardado correctamente.', 'success');
+    } catch (e) {
+        showToast('Error al guardar: ' + e.message, 'error');
+    }
+}
+
+async function deleteExercise(i) {
+    if (!confirm('¿Eliminar este ejercicio? Esta acción no se puede deshacer.')) return;
+    const qs = [...(loadedQuestions[currentExCat] || [])];
+    qs.splice(i, 1);
+    loadedQuestions[currentExCat] = qs;
+    try {
+        await DB.saveQuestions(currentExCat, qs);
+        renderExerciseList();
+        showToast('Ejercicio eliminado.', 'info');
+    } catch (e) {
+        showToast('Error al eliminar: ' + e.message, 'error');
+    }
+}
+
+document.getElementById('addExerciseBtn').addEventListener('click', () => {
+    const qs   = loadedQuestions[currentExCat] || [];
+    const prefix = { basico: 'b', intermedio: 'i', avanzado: 'a', sol: 's' }[currentExCat] || 'x';
+    qs.push({ id: `${prefix}${qs.length + 1}`, text: '', correctAnswer: '' });
+    loadedQuestions[currentExCat] = qs;
+    editingIdx = qs.length - 1;
+    renderExerciseList();
+    // Scroll to bottom
+    document.getElementById('exerciseList').lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+});
+
+// ══ CLASIFICADOS TAB ════════════════════════════
+['classSchool', 'classCat'].forEach(id =>
+    document.getElementById(id)?.addEventListener('change', renderClassified)
+);
+
+document.getElementById('classifyAll').addEventListener('click', async () => {
+    const filtered = getFilteredClassified();
+    for (const sub of filtered) {
+        if (!sub.classified) await toggleClassified(sub, true);
+    }
+    renderClassified();
+    updateCounts();
+});
+
+document.getElementById('unclassifyAll').addEventListener('click', async () => {
+    const filtered = getFilteredClassified();
+    for (const sub of filtered) {
+        if (sub.classified) await toggleClassified(sub, false);
+    }
+    renderClassified();
+    updateCounts();
+});
+
+function getFilteredClassified() {
+    const school = document.getElementById('classSchool').value;
+    const cat    = document.getElementById('classCat').value;
+    return allSubmissions
+        .filter(s => (!school || s.user?.school === school) && (!cat || s.user?.category === cat))
+        .sort((a, b) => b.autoGrade.score - a.autoGrade.score);
+}
+
+function renderClassified() {
+    const filtered = getFilteredClassified();
+    const body     = document.getElementById('classifiedBody');
+    body.innerHTML = '';
+
+    if (!filtered.length) {
+        body.innerHTML = '<tr><td colspan="6" class="text-center" style="padding:2rem; color:var(--text-muted);">No hay entregas con los filtros actuales.</td></tr>';
+        return;
+    }
+
+    filtered.forEach((sub, i) => {
+        const rank        = i + 1;
+        const rankClass   = rank === 1 ? 'gold' : (rank === 2 ? 'silver' : (rank === 3 ? 'bronze' : ''));
+        const catName     = CATEGORIES.find(c => c.id === sub.user?.category)?.name || sub.user?.category || '—';
+        const classified  = sub.classified;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><span class="rank-badge ${rankClass}">${rank}</span></td>
+            <td><strong>${sub.user.lastName || ''}, ${sub.user.firstName || ''}</strong><br><small style="color:var(--text-muted);">${sub.user.email || ''}</small></td>
+            <td>${sub.user.school || '—'}</td>
+            <td style="font-size:0.85rem;">${catName}</td>
+            <td><span class="badge ${sub.autoGrade.score === sub.autoGrade.total ? 'badge-correct' : 'badge-partial'}">${sub.autoGrade.score} / ${sub.autoGrade.total}</span></td>
+            <td>
+                <button class="classified-badge ${classified ? 'active' : ''} toggle-btn">
+                    ${classified ? '🏅 Clasificado' : '○ Marcar'}
+                </button>
+            </td>
+        `;
+
+        tr.querySelector('.toggle-btn').addEventListener('click', async (e) => {
+            e.currentTarget.textContent = '…';
+            e.currentTarget.disabled = true;
+            await toggleClassified(sub, !classified);
+            renderClassified();
+            updateCounts();
+            renderResults();
+        });
+
+        body.appendChild(tr);
+    });
+}
+
+async function toggleClassified(sub, value) {
+    sub.classified = value;
+    if (value) {
+        sub.classifiedAt = new Date().toISOString();
+    } else {
+        delete sub.classifiedAt;
+    }
+    try {
+        await DB.updateSubmission(sub.user.uid, { classified: value, classifiedAt: sub.classifiedAt || null });
+    } catch (e) {
+        showToast('Error al guardar: ' + e.message, 'error');
+    }
+}
+
+// ── PDF Export ────────────────────────────────
+document.getElementById('exportBySchool').addEventListener('click', () => printClassified(true));
+document.getElementById('exportAll').addEventListener('click',      () => printClassified(false));
+
+function printClassified(bySchool) {
+    const school = document.getElementById('classSchool').value;
+    const cat    = document.getElementById('classCat').value;
+
+    const classified = allSubmissions.filter(s => {
+        if (!s.classified) return false;
+        if (school && s.user?.school !== school) return false;
+        if (cat    && s.user?.category !== cat)  return false;
+        return true;
+    }).sort((a, b) => b.autoGrade.score - a.autoGrade.score);
+
+    if (!classified.length) {
+        showToast('No hay clasificados con los filtros actuales.', 'error');
+        return;
+    }
+
+    const now     = new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const title   = bySchool ? 'Clasificados por Colegio' : 'Lista General de Clasificados';
+
+    const tableRowsFn = (list) => list.map((s, i) => {
+        const catName = CATEGORIES.find(c => c.id === s.user?.category)?.name || s.user?.category || '—';
+        return `<tr>
+            <td>${i + 1}</td>
+            <td>${s.user.lastName || ''}, ${s.user.firstName || ''}</td>
+            ${bySchool ? '' : `<td>${s.user.school || '—'}</td>`}
+            <td>${catName}</td>
+            <td>${s.autoGrade.score} / ${s.autoGrade.total}</td>
+        </tr>`;
+    }).join('');
+
+    let body = '';
+    if (bySchool) {
+        const schools = [...new Set(classified.map(s => s.user?.school))].sort();
+        schools.forEach((sch, idx) => {
+            const list = classified.filter(s => s.user?.school === sch);
+            body += `<div class="${idx > 0 ? 'print-page-break' : ''}">
+                <p class="school-heading">Colegio: ${sch}</p>
+                <table>
+                    <thead><tr><th>#</th><th>Apellido y Nombre</th><th>Categoría</th><th>Puntaje</th></tr></thead>
+                    <tbody>${tableRowsFn(list)}</tbody>
+                </table>
+            </div>`;
+        });
+    } else {
+        body = `<table>
+            <thead><tr><th>#</th><th>Apellido y Nombre</th><th>Colegio</th><th>Categoría</th><th>Puntaje</th></tr></thead>
+            <tbody>${tableRowsFn(classified)}</tbody>
+        </table>`;
+    }
+
+    const html = `<!DOCTYPE html><html lang="es"><head>
+        <meta charset="UTF-8">
+        <title>${title} - Active Maths Championship</title>
+        <style>
+            body { font-family: Arial, sans-serif; color: #000; padding: 1.5cm; }
+            h1 { font-size: 20pt; text-align: center; border-bottom: 2pt solid #000; padding-bottom: 8pt; margin-bottom: 4pt; }
+            .meta { text-align: center; font-size: 10pt; color: #555; margin-bottom: 20pt; }
+            .school-heading { font-size: 14pt; font-weight: bold; margin: 20pt 0 6pt; border-bottom: 1pt solid #888; padding-bottom: 4pt; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; font-size: 10pt; }
+            th, td { border: 1pt solid #aaa; padding: 6pt 8pt; text-align: left; }
+            th { background: #eee; font-weight: bold; }
+            .print-page-break { page-break-before: always; }
+            @media print { .print-page-break { page-break-before: always; } }
+        </style>
+    </head><body>
+        <h1>Active Maths Championship 2025</h1>
+        <p class="meta">${title} · Generado el ${now}${school ? ' · ' + school : ''}${cat ? ' · ' + (CATEGORIES.find(c => c.id === cat)?.name || cat) : ''}</p>
+        ${body}
+    </body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) { showToast('Activá las ventanas emergentes para exportar.', 'error'); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 600);
+}
+
+// ══ CONFIGURACIÓN TAB ═══════════════════════════
+document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+    const minutes = parseInt(document.getElementById('configDuration').value, 10);
+    if (!minutes || minutes < 10 || minutes > 300) {
+        showToast('La duración debe estar entre 10 y 300 minutos.', 'error');
+        return;
+    }
+    const btn = document.getElementById('saveConfigBtn');
+    btn.textContent = 'Guardando…';
+    btn.disabled = true;
+    try {
+        await DB.saveConfig({ examDurationMinutes: minutes });
+        const status = document.getElementById('configStatus');
+        status.style.display = 'block';
+        setTimeout(() => { status.style.display = 'none'; }, 4000);
+        showToast(`Duración actualizada a ${minutes} minutos.`, 'success');
+    } catch (e) {
+        showToast('Error al guardar: ' + e.message, 'error');
+    } finally {
+        btn.textContent = 'Guardar Configuración';
+        btn.disabled = false;
+    }
+});
+
+// ══ Utilities ═══════════════════════════════════
+function esc(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function showToast(msg, type = 'info') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = `show ${type}`;
+    clearTimeout(t._to);
+    t._to = setTimeout(() => { t.className = ''; }, 3500);
+}
+
+</script>
+</body>
+</html>
