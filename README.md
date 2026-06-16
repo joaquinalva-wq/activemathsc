@@ -104,4 +104,17 @@ La lista de administradores está en tres lugares y deben coincidir:
   en el panel para corregirlo — hay que editarlo manualmente desde la consola de
   Firebase, o borrar su entrega y dejar que se registre de nuevo (función ya
   disponible en la pestaña Resultados).
-- El hosting (Firebase Hosting, GitHub Pages u otro) queda pendiente de decisión.
+- Las imágenes de ejercicios requieren Firebase Storage habilitado, lo cual
+  exige el plan Blaze (pago por uso) del proyecto desde octubre de 2024. Para
+  el volumen de este proyecto el costo real esperado es **USD 0** (cae dentro
+  de la cuota gratuita que el plan Blaze también incluye), pero requiere cargar
+  una tarjeta en la cuenta de Cloud Billing. Mientras no se habilite, todo lo
+  demás (login, examen, corrección, anti-trampa, panel admin) funciona igual;
+  simplemente no se podrán subir imágenes a los ejercicios.
+
+## Hosting (Netlify)
+
+El sitio se despliega en Netlify (sin paso de build, `netlify.toml` ya deja
+`publish = "."`). Para conectarlo: Netlify → Add new site → Import an existing
+project → elegir el repo de GitHub `activemathsc` → Deploy. Cualquier push a
+`main` vuelve a desplegar automáticamente.

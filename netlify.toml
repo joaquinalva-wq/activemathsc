@@ -1,0 +1,4 @@
+[build]
+  publish = "."
+
+# Sitio estático sin build step (HTML/CSS/JS plano) — no hace falta "command".
