@@ -826,6 +826,13 @@ header p  { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
   box-shadow: var(--shadow-sm);
 }
 
+.image-status {
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0.4rem 0 0;
+}
+
 /* ── Cat Pills ───────────────────────────────────── */
 .cat-pills { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
 

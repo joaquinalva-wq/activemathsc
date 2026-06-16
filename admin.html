@@ -447,8 +447,6 @@ let allSubmissions   = [];
 let loadedQuestions  = {};  // { basico: [...], intermedio: [...], avanzado: [...] } (pitagoras reusa basico)
 let currentExCat     = 'basico';
 let editingIdx       = -1;  // index of exercise being edited
-let pendingImageFile    = null;  // File seleccionado para subir al guardar
-let pendingImageRemoved = false; // true si se pidió quitar la imagen actual
 
 const ALLOWED_EMAILS = [
     'joaquin.alva@activelearning.com.ar',
@@ -977,13 +975,10 @@ function renderExerciseList() {
 
             div.querySelector('.edit-ex-btn').addEventListener('click', () => {
                 editingIdx = i;
-                pendingImageFile    = null;
-                pendingImageRemoved = false;
                 renderExerciseList();
             });
             div.querySelector('[data-del]').addEventListener('click', () => deleteExercise(i));
         } else {
-            const showPreview = !pendingImageRemoved && (pendingImageFile || q.imageUrl);
             div.innerHTML = `
                 <div style="display:flex; gap:0.75rem; align-items:flex-start; margin-bottom:0.75rem;">
                     <span class="exercise-number">${i + 1}</span>
@@ -992,18 +987,14 @@ function renderExerciseList() {
                 <label style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Enunciado</label>
                 <textarea class="exercise-edit-field" id="editText_${i}" rows="4">${esc(q.text)}</textarea>
 
-                <label style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:0.75rem; display:block;">Imagen del ejercicio (opcional · .jpg o .png)</label>
+                <label style="font-size:0.8rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-top:0.75rem; display:block;">Imagen del ejercicio (opcional)</label>
                 <div class="exercise-image-editor">
-                    <img id="imagePreview_${i}" alt="Figura del ejercicio" class="exercise-image-preview" ${showPreview ? '' : 'style="display:none;"'}
-                         src="${pendingImageFile ? URL.createObjectURL(pendingImageFile) : (q.imageUrl || '')}">
-                    <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-top:0.6rem;">
-                        <label class="btn btn-secondary btn-sm" style="cursor:pointer; margin-bottom:0;">
-                            📷 ${showPreview ? 'Cambiar imagen' : 'Subir imagen'}
-                            <input type="file" accept="image/jpeg,image/png" id="imageInput_${i}" style="display:none;">
-                        </label>
-                        <button type="button" class="btn btn-secondary btn-sm remove-image-btn" style="color:var(--accent); border-color:var(--accent); ${showPreview ? '' : 'display:none;'}">Quitar imagen</button>
-                        <span id="imageStatus_${i}" style="font-size:0.8rem; color:var(--text-muted);">${pendingImageFile ? 'Lista para subir: ' + esc(pendingImageFile.name) : ''}</span>
-                    </div>
+                    <input type="text" class="exercise-answer-input" id="imagePath_${i}" placeholder="images/exercises/b1.jpg" value="${esc(q.imageUrl || '')}">
+                    <p style="font-size:0.78rem; color:var(--text-muted); margin:0.4rem 0 0.6rem;">
+                        Subí el archivo a la carpeta <code>images/exercises/</code> del repositorio (por GitHub o pidiéndoselo a Claude) y escribí aquí la ruta exacta.
+                    </p>
+                    <img id="imagePreview_${i}" alt="Figura del ejercicio" class="exercise-image-preview" style="${q.imageUrl ? '' : 'display:none;'}" src="${esc(q.imageUrl || '')}">
+                    <p id="imageStatus_${i}" class="image-status" style="display:none;">No se encontró esa imagen en el repositorio. Verificá la ruta.</p>
                 </div>
 
                 <label style="font-size:0.8rem; font-weight:600; color:var(--success); text-transform:uppercase; letter-spacing:0.5px; margin-top:1rem; display:block;">Respuesta correcta</label>
@@ -1013,45 +1004,27 @@ function renderExerciseList() {
                     <button class="btn btn-secondary btn-sm cancel-ex-btn">Cancelar</button>
                 </div>`;
 
-            const imageInput   = div.querySelector(`#imageInput_${i}`);
-            const preview      = div.querySelector(`#imagePreview_${i}`);
-            const status       = div.querySelector(`#imageStatus_${i}`);
-            const removeBtn    = div.querySelector('.remove-image-btn');
+            const pathInput = div.querySelector(`#imagePath_${i}`);
+            const preview   = div.querySelector(`#imagePreview_${i}`);
+            const status    = div.querySelector(`#imageStatus_${i}`);
 
-            imageInput.addEventListener('change', () => {
-                const file = imageInput.files[0];
-                if (!file) return;
-                if (!['image/jpeg', 'image/png'].includes(file.type)) {
-                    showToast('Solo se aceptan imágenes .jpg o .png.', 'error');
-                    imageInput.value = '';
-                    return;
-                }
-                if (file.size > 5 * 1024 * 1024) {
-                    showToast('La imagen no puede superar los 5 MB.', 'error');
-                    imageInput.value = '';
-                    return;
-                }
-                pendingImageFile    = file;
-                pendingImageRemoved = false;
-                preview.src = URL.createObjectURL(file);
+            pathInput.addEventListener('input', () => {
+                const path = pathInput.value.trim();
+                if (!path) { preview.style.display = 'none'; status.style.display = 'none'; return; }
+                preview.src = path;
                 preview.style.display = '';
-                removeBtn.style.display = '';
-                status.textContent = 'Lista para subir: ' + file.name;
+                status.style.display = 'none';
             });
-
-            removeBtn.addEventListener('click', () => {
-                pendingImageFile    = null;
-                pendingImageRemoved = true;
-                preview.style.display   = 'none';
-                removeBtn.style.display = 'none';
-                status.textContent = q.imageUrl ? 'Se quitará al guardar.' : '';
+            preview.addEventListener('error', () => {
+                if (!pathInput.value.trim()) return;
+                preview.style.display = 'none';
+                status.style.display = '';
             });
+            preview.addEventListener('load', () => { status.style.display = 'none'; });
 
             div.querySelector('.save-ex-btn').addEventListener('click', () => saveExercise(i));
             div.querySelector('.cancel-ex-btn').addEventListener('click', () => {
                 editingIdx = -1;
-                pendingImageFile    = null;
-                pendingImageRemoved = false;
                 renderExerciseList();
             });
         }
@@ -1065,32 +1038,19 @@ function renderExerciseList() {
 }
 
 async function saveExercise(i) {
-    const newText   = document.getElementById(`editText_${i}`).value.trim();
-    const newAnswer = document.getElementById(`editAnswer_${i}`).value.trim();
+    const newText    = document.getElementById(`editText_${i}`).value.trim();
+    const newAnswer  = document.getElementById(`editAnswer_${i}`).value.trim();
+    const newImgPath = document.getElementById(`imagePath_${i}`).value.trim();
     if (!newText || !newAnswer) { showToast('Completá el enunciado y la respuesta.', 'error'); return; }
-
-    const saveBtn = document.querySelector(`.exercise-card.editing .save-ex-btn`);
-    const oldImageUrl = loadedQuestions[currentExCat][i].imageUrl;
 
     const qs = [...(loadedQuestions[currentExCat] || [])];
     qs[i] = { ...qs[i], text: newText, correctAnswer: newAnswer };
+    if (newImgPath) qs[i].imageUrl = newImgPath; else delete qs[i].imageUrl;
 
     try {
-        if (pendingImageFile) {
-            saveBtn.textContent = 'Subiendo imagen…';
-            saveBtn.disabled = true;
-            qs[i].imageUrl = await DB.uploadExerciseImage(currentExCat, qs[i].id, pendingImageFile);
-            if (oldImageUrl) DB.deleteExerciseImage(oldImageUrl);
-        } else if (pendingImageRemoved) {
-            delete qs[i].imageUrl;
-            if (oldImageUrl) DB.deleteExerciseImage(oldImageUrl);
-        }
-
         loadedQuestions[currentExCat] = qs;
         await DB.saveQuestionsFull(currentExCat, qs);
         editingIdx = -1;
-        pendingImageFile    = null;
-        pendingImageRemoved = false;
         renderExerciseList();
         showToast('Ejercicio guardado correctamente.', 'success');
     } catch (e) {
@@ -1101,10 +1061,9 @@ async function saveExercise(i) {
 async function deleteExercise(i) {
     if (!confirm('¿Eliminar este ejercicio? Esta acción no se puede deshacer.')) return;
     const qs = [...(loadedQuestions[currentExCat] || [])];
-    const [removed] = qs.splice(i, 1);
+    qs.splice(i, 1);
     loadedQuestions[currentExCat] = qs;
     try {
-        if (removed?.imageUrl) DB.deleteExerciseImage(removed.imageUrl);
         await DB.saveQuestionsFull(currentExCat, qs);
         renderExerciseList();
         showToast('Ejercicio eliminado.', 'info');
@@ -1119,8 +1078,6 @@ document.getElementById('addExerciseBtn').addEventListener('click', () => {
     qs.push({ id: `${prefix}${qs.length + 1}`, text: '', correctAnswer: '' });
     loadedQuestions[currentExCat] = qs;
     editingIdx = qs.length - 1;
-    pendingImageFile    = null;
-    pendingImageRemoved = false;
     renderExerciseList();
     // Scroll to bottom
     document.getElementById('exerciseList').lastElementChild?.scrollIntoView({ behavior: 'smooth' });

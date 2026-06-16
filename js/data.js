@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCc6l3nVqTq_rc6gfGgAdV0EfAQANyeDxk",
@@ -16,7 +15,6 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const provider = new GoogleAuthProvider();
 
 export { signInWithPopup, onAuthStateChanged, signOut };
@@ -180,19 +178,6 @@ export const DB = {
         const updatedAt = new Date().toISOString();
         await setDoc(doc(db, "questions", category), { questions: qs, updatedAt });
         await setDoc(doc(db, "answer_keys", category), { answers, updatedAt });
-    },
-    // Imagen adjunta a un ejercicio (ej. figura de geometría). Solo .jpg/.png, máx 5MB.
-    uploadExerciseImage: async (category, qId, file) => {
-        const ext  = file.type === 'image/png' ? 'png' : 'jpg';
-        const path = `exercise-images/${category}/${qId}-${Date.now()}.${ext}`;
-        const fileRef = ref(storage, path);
-        await uploadBytes(fileRef, file);
-        return await getDownloadURL(fileRef);
-    },
-    deleteExerciseImage: async (url) => {
-        try {
-            await deleteObject(ref(storage, url));
-        } catch (_) { /* puede que ya no exista; no es bloqueante */ }
     },
     deleteSubmission: async (uid) => {
         await deleteDoc(doc(db, "submissions", uid));

@@ -9,7 +9,7 @@ de los colegios de la red Active Learning.
 - `js/data.js` — configuración de Firebase, catálogos (colegios/categorías) y acceso a datos.
 - `css/styles.css` — estilos.
 - `firestore.rules` — reglas de seguridad de Firestore (ver más abajo).
-- `storage.rules` — reglas de seguridad de Firebase Storage para imágenes de ejercicios.
+- `images/exercises/` — imágenes de figuras para los ejercicios (ver más abajo).
 
 ## Correr localmente
 
@@ -64,12 +64,20 @@ examen automáticamente.
 
 ## Imágenes en los ejercicios (figuras de geometría, etc.)
 
-En la pestaña "Ejercicios" del panel admin, al editar un ejercicio se puede subir
-una imagen `.jpg` o `.png` (máx. 5 MB). Se guarda en Firebase Storage, bajo
-`exercise-images/{categoría}/...`, y la URL queda en el campo `imageUrl` del
-ejercicio en `questions/{categoría}`. Como no es información secreta (a diferencia
-de la respuesta correcta), el estudiante sí la recibe y la ve arriba del enunciado
-durante el examen. Al reemplazar o quitar una imagen, se borra la anterior de Storage.
+No usamos Firebase Storage para esto (requiere el plan Blaze con tarjeta —
+ver más abajo). En su lugar, las imágenes son archivos del propio repositorio:
+
+1. Subí el `.jpg`/`.png` a la carpeta `images/exercises/` (por GitHub o
+   pidiéndoselo a Claude en una sesión).
+2. En el panel admin → pestaña "Ejercicios" → editar el ejercicio → campo
+   "Imagen del ejercicio", escribí la ruta exacta (ej. `images/exercises/b1.jpg`).
+   La vista previa se actualiza al tipear; si no encuentra el archivo, avisa.
+3. Guardar el ejercicio guarda esa ruta como texto en `questions/{categoría}`
+   (no es información secreta, así que el estudiante la recibe igual que el
+   enunciado, y la ve arriba del problema durante el examen).
+
+Como es un archivo del repo, hay que volver a desplegar (push a GitHub) cada
+vez que se agrega o cambia una imagen para que quede disponible en el sitio.
 
 ## Reglas de seguridad de Firestore
 
@@ -91,10 +99,9 @@ estar todavía en "modo de prueba", que expira solo y bloquea toda lectura/escri
 
 ## Mantener sincronizados los emails de admin
 
-La lista de administradores está en tres lugares y deben coincidir:
+La lista de administradores está en dos lugares y deben coincidir:
 - `admin.html` → constante `ALLOWED_EMAILS`
 - `firestore.rules` → función `isAdmin()`
-- `storage.rules` → función `isAdmin()`
 
 ## Limitaciones conocidas / posibles próximos pasos
 
@@ -104,13 +111,10 @@ La lista de administradores está en tres lugares y deben coincidir:
   en el panel para corregirlo — hay que editarlo manualmente desde la consola de
   Firebase, o borrar su entrega y dejar que se registre de nuevo (función ya
   disponible en la pestaña Resultados).
-- Las imágenes de ejercicios requieren Firebase Storage habilitado, lo cual
-  exige el plan Blaze (pago por uso) del proyecto desde octubre de 2024. Para
-  el volumen de este proyecto el costo real esperado es **USD 0** (cae dentro
-  de la cuota gratuita que el plan Blaze también incluye), pero requiere cargar
-  una tarjeta en la cuenta de Cloud Billing. Mientras no se habilite, todo lo
-  demás (login, examen, corrección, anti-trampa, panel admin) funciona igual;
-  simplemente no se podrán subir imágenes a los ejercicios.
+- Las imágenes de ejercicios son archivos del repo (no Firebase Storage) porque
+  habilitar Storage por primera vez exige el plan Blaze del proyecto, que pide
+  tarjeta — ver sección "Imágenes en los ejercicios" arriba. Si en algún momento
+  se habilita Blaze, se podría volver a un flujo de carga directa desde el panel.
 
 ## Hosting (Netlify)
 
