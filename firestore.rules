@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para Active Maths Championship.
+//
+// CÓMO APLICARLAS:
+//   Firebase Console -> Firestore Database -> Reglas -> pegar este archivo -> Publicar
+//   (o, si más adelante configurás Firebase CLI: `firebase deploy --only firestore:rules`)
+//
+// IMPORTANTE: la lista ADMIN_EMAILS de abajo debe coincidir siempre con
+// ALLOWED_EMAILS en admin.html. Si agregás un nuevo docente/admin, actualizá los dos lugares.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null &&
+             request.auth.token.email in [
+               'joaquin.alva@activelearning.com.ar',
+               'colaboradores.aprendizajes@activelearning.com.ar'
+             ];
+    }
+
+    // Perfil del estudiante (colegio, categoría, nombre). Se crea una sola vez
+    // en index.html; no se puede modificar después (así se cumple lo que el
+    // formulario le promete al estudiante: "no podrás cambiarlo después").
+    match /users/{uid} {
+      allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Estado en progreso del examen (respuestas parciales, tiempo restante,
+    // registro de salidas de ventana). El propio estudiante puede escribir
+    // mientras NO haya terminado; una vez que finished == true, se bloquea
+    // para que no pueda "reabrir" su propio examen.
+    match /exam_states/{uid} {
+      allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if isAdmin() ||
+                       (request.auth != null && request.auth.uid == uid && resource.data.finished != true);
+      allow delete: if isAdmin();
+    }
+
+    // Entrega final. Se crea una sola vez por estudiante (una sola respuesta
+    // por cuenta); ni el puntaje ni las respuestas se pueden editar después
+    // de enviadas salvo por el admin (ej. para marcar "clasificado").
+    match /submissions/{uid} {
+      allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Enunciados (sin respuesta correcta): cualquier usuario autenticado los
+    // puede leer durante el examen; solo el admin los edita.
+    match /questions/{category} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Clave de respuestas: SOLO el admin puede leerla o escribirla. Los
+    // estudiantes nunca deben poder acceder a esta colección — así, aunque
+    // abran las herramientas de desarrollador, no pueden ver la respuesta
+    // correcta antes de responder.
+    match /answer_keys/{category} {
+      allow read, write: if isAdmin();
+    }
+
+    // Configuración general (duración del examen, etc.)
+    match /config/{doc} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+  }
+}

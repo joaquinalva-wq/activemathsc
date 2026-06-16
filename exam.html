@@ -34,7 +34,7 @@
 
         .welcome-rules {
             background: var(--primary-light);
-            border-radius: 14px;
+            border-radius: var(--radius-sm);
             padding: 1.5rem;
             margin: 1.5rem 0;
             border: 1px solid rgba(26,110,232,0.15);
@@ -42,14 +42,38 @@
         }
         .rule-item {
             display: flex;
-            align-items: flex-start;
-            gap: 0.75rem;
-            margin-bottom: 0.75rem;
+            align-items: center;
+            gap: 0.9rem;
+            margin-bottom: 0.85rem;
             font-size: 0.95rem;
             color: var(--text-main);
+            opacity: 0;
+            transform: translateX(-8px);
+            animation: ruleIn 0.45s ease forwards;
         }
+        .rule-item:nth-child(1) { animation-delay: 0.05s; }
+        .rule-item:nth-child(2) { animation-delay: 0.15s; }
+        .rule-item:nth-child(3) { animation-delay: 0.25s; }
+        .rule-item:nth-child(4) { animation-delay: 0.35s; }
+        .rule-item:nth-child(5) { animation-delay: 0.45s; }
+        @keyframes ruleIn { to { opacity: 1; transform: translateX(0); } }
         .rule-item:last-child { margin-bottom: 0; }
-        .rule-icon { flex-shrink: 0; margin-top: 0.1rem; }
+        .rule-icon {
+            flex-shrink: 0;
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.05rem;
+            background: white;
+            box-shadow: var(--shadow-sm);
+        }
+        .rule-item:nth-child(1) .rule-icon { background: rgba(231,76,60,0.12); }
+        .rule-item:nth-child(2) .rule-icon { background: rgba(243,156,18,0.14); }
+        .rule-item:nth-child(3) .rule-icon { background: rgba(39,174,96,0.14); }
+        .rule-item:nth-child(4) .rule-icon { background: rgba(22,160,133,0.14); }
+        .rule-item:nth-child(5) .rule-icon { background: rgba(26,110,232,0.14); }
 
         .finished-icon { font-size: 4rem; margin-bottom: 1rem; }
         .finished-details {
@@ -99,7 +123,10 @@
                 <p id="userCategoryDisplay" style="margin:0;">Cargando…</p>
             </div>
             <!-- El cronómetro usa clase .timer del CSS; se oculta SOLO al finalizar -->
-            <div id="timerDisplay" class="timer">—:——</div>
+            <div class="timer-wrap">
+                <span class="timer-label">Tiempo restante</span>
+                <div id="timerDisplay" class="timer">—:——</div>
+            </div>
         </header>
 
         <div id="warningBanner" class="warning-banner hidden">
@@ -109,7 +136,7 @@
         <!-- ── Pantalla de instrucciones ────────────── -->
         <div id="welcomeScreen" class="glass-card text-center hidden">
             <div class="brand-bar"></div>
-            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📐</div>
+            <div class="hero-badge">📐</div>
             <h1>Active Maths Championship</h1>
             <p style="font-size: 1.05rem;">Leé las instrucciones antes de comenzar.</p>
 
@@ -150,6 +177,7 @@
 
                 <div class="question-container">
                     <div id="questionText" class="question-text">Cargando pregunta…</div>
+                    <img id="questionImage" class="question-image hidden" alt="Figura del ejercicio">
                 </div>
 
                 <div class="form-group">
@@ -195,6 +223,7 @@
         let answers         = [];
         let timeLeft        = 80 * 60;   // default; overridden by Firestore config
         let timerInterval   = null;
+        let violationLog    = [];        // { type: 'visibility'|'fullscreen', at: ISOString }[]
 
         // ── DOM refs ─────────────────────────────────
         const loadingOverlay     = document.getElementById('loadingOverlay');
@@ -204,6 +233,7 @@
         const questionText       = document.getElementById('questionText');
         const answerInput        = document.getElementById('answerInput');
         const justificationInput = document.getElementById('justificationInput');
+        const questionImage      = document.getElementById('questionImage');
         const prevBtn            = document.getElementById('prevBtn');
         const nextBtn            = document.getElementById('nextBtn');
         const finishBtn          = document.getElementById('finishBtn');
@@ -261,6 +291,7 @@
                 currentQuestionIndex = savedState.currentQuestionIndex || 0;
                 // El tiempo guardado tiene prioridad sobre la configuración
                 timeLeft = (savedState.timeLeft != null) ? savedState.timeLeft : timeLeft;
+                violationLog = savedState.violationLog || [];
                 updateTimerDisplay();
                 startExam(true);
             } else {
@@ -322,10 +353,21 @@
                 answers[currentQuestionIndex].justification = justificationInput.value;
             }
             await DB.saveExamState(currentUser.uid, {
-                answers, currentQuestionIndex, timeLeft,
+                answers, currentQuestionIndex, timeLeft, violationLog,
                 updatedAt: new Date().toISOString()
             });
             showSaving(false);
+        }
+
+        // ── Anti-trampa: registrar (sin bloquear) cada salida de ventana/pantalla completa
+        function logViolation(type) {
+            violationLog.push({ type, at: new Date().toISOString() });
+            document.getElementById('warningBanner').classList.remove('hidden');
+            // Persistencia inmediata: no esperar al autoguardado de 30s
+            DB.saveExamState(currentUser.uid, {
+                answers, currentQuestionIndex, timeLeft, violationLog,
+                updatedAt: new Date().toISOString()
+            });
         }
 
         function showSaving(active) {
@@ -343,7 +385,20 @@
             document.getElementById('questionCounter').textContent =
                 `Problema ${index + 1} de ${questions.length}`;
 
+            // Reinicia la animación de entrada en cada cambio de pregunta
+            const questionContainer = document.querySelector('.question-container');
+            questionContainer.classList.remove('question-enter');
+            void questionContainer.offsetWidth;
+            questionContainer.classList.add('question-enter');
+
             questionText.textContent = q.text;
+            if (q.imageUrl) {
+                questionImage.src = q.imageUrl;
+                questionImage.classList.remove('hidden');
+            } else {
+                questionImage.classList.add('hidden');
+                questionImage.src = '';
+            }
             answerInput.value        = answers[index]?.answer        || '';
             justificationInput.value = answers[index]?.justification || '';
 
@@ -402,25 +457,20 @@
         });
 
         // ── Submission ────────────────────────────────
+        // El puntaje NO se calcula aquí: el enunciado que recibe el estudiante
+        // nunca incluye la respuesta correcta, así que la corrección automática
+        // la hace el panel admin (que sí tiene la clave de respuestas).
         async function submitExam() {
             finishBtn.textContent = 'Enviando…';
             finishBtn.disabled    = true;
             if (timerInterval) clearInterval(timerInterval);
             await saveState();
 
-            let correct = 0;
-            answers.forEach(ans => {
-                const q = questions.find(qu => qu.id === ans.qId);
-                if (q && ans.answer?.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) {
-                    correct++;
-                }
-            });
-
             await DB.saveSubmission(currentUser.uid, {
                 user:       currentUserData,
                 answers,
-                submittedAt: new Date().toISOString(),
-                autoGrade:  { score: correct, total: questions.length }
+                violationLog,
+                submittedAt: new Date().toISOString()
             });
 
             examScreen.classList.add('hidden');
@@ -428,11 +478,18 @@
             timerEl.classList.add('hidden-timer');
         }
 
-        // ── Visibility change detection ───────────────
+        // ── Detección de cambio de ventana/pestaña y salida de pantalla completa ──
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden' &&
                 !examScreen.classList.contains('hidden')) {
-                document.getElementById('warningBanner').classList.remove('hidden');
+                logViolation('visibility');
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement &&
+                !examScreen.classList.contains('hidden')) {
+                logViolation('fullscreen');
             }
         });
     </script>

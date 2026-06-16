@@ -1,6 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCc6l3nVqTq_rc6gfGgAdV0EfAQANyeDxk",
@@ -15,6 +16,7 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const provider = new GoogleAuthProvider();
 
 export { signInWithPopup, onAuthStateChanged, signOut };
@@ -27,21 +29,15 @@ export const SCHOOLS = [
 ];
 
 export const CATEGORIES = [
-    { id: "basico",       name: "Básico (7N y 8N)" },
-    { id: "basico_a",     name: "Básico A (7N y 8N con diagnóstico)" },
-    { id: "intermedio",   name: "Intermedio (9N y 10N)" },
-    { id: "intermedio_a", name: "Intermedio A (9N y 10N con diagnóstico)" },
-    { id: "avanzado",     name: "Avanzado (11N y 12N)" },
-    { id: "avanzado_a",   name: "Avanzado A (11N y 12N con diagnóstico)" },
-    { id: "sol",          name: "Sol" }
+    { id: "basico",     name: "Básico (7N y 8N)" },
+    { id: "intermedio", name: "Intermedio (9N y 10N)" },
+    { id: "avanzado",   name: "Avanzado (11N y 12N)" },
+    { id: "pitagoras",  name: "Pitágoras" }
 ];
 
-// Maps derived categories to the base category stored in Firestore
+// "pitagoras" reutiliza el banco de preguntas de "basico" (sin mostrar el motivo al estudiante)
 export const CATEGORY_BASE_MAP = {
-    "basico_a":     "basico",
-    "intermedio_a": "intermedio",
-    "avanzado_a":   "avanzado",
-    "sol":          "basico"
+    "pitagoras": "basico"
 };
 
 export const QUESTIONS_DB = {
@@ -113,10 +109,7 @@ export const QUESTIONS_DB = {
     ]
 };
 
-QUESTIONS_DB["basico_a"]     = QUESTIONS_DB["basico"];
-QUESTIONS_DB["intermedio_a"] = QUESTIONS_DB["intermedio"];
-QUESTIONS_DB["avanzado_a"]   = QUESTIONS_DB["avanzado"];
-QUESTIONS_DB["sol"]          = QUESTIONS_DB["basico"];
+QUESTIONS_DB["pitagoras"] = QUESTIONS_DB["basico"];
 
 export const DB = {
     saveUser: async (uid, userData) => {
@@ -146,7 +139,10 @@ export const DB = {
         snap.forEach(d => subs.push({ _docId: d.id, ...d.data() }));
         return subs;
     },
-    // Loads questions from Firestore if admin has customized them; falls back to hardcoded defaults
+    // Para el examen del estudiante: solo enunciado, NUNCA la respuesta correcta.
+    // La clave de respuestas vive en una colección separada (answer_keys) que las
+    // reglas de Firestore solo dejan leer al admin, así un estudiante no puede
+    // verla por la consola del navegador ni por la pestaña Network.
     getQuestions: async (category) => {
         const baseCategory = CATEGORY_BASE_MAP[category] || category;
         try {
@@ -155,13 +151,48 @@ export const DB = {
                 return snap.data().questions;
             }
         } catch (_) { /* network error or permission denied: use defaults */ }
-        return QUESTIONS_DB[category] || [];
+        return (QUESTIONS_DB[category] || []).map(({ id, text, imageUrl }) => ({ id, text, imageUrl }));
     },
-    saveQuestions: async (category, questions) => {
-        await setDoc(doc(db, "questions", category), {
-            questions,
-            updatedAt: new Date().toISOString()
-        });
+    // Solo para el admin: enunciado + respuesta correcta combinados, para editar y corregir.
+    getQuestionsFull: async (category) => {
+        const baseCategory = CATEGORY_BASE_MAP[category] || category;
+        let qs = null, answers = null;
+        try {
+            const qSnap = await getDoc(doc(db, "questions", baseCategory));
+            if (qSnap.exists() && qSnap.data().questions?.length > 0) qs = qSnap.data().questions;
+        } catch (_) { /* usar default */ }
+        try {
+            const aSnap = await getDoc(doc(db, "answer_keys", baseCategory));
+            if (aSnap.exists()) answers = aSnap.data().answers || {};
+        } catch (_) { /* usar default */ }
+
+        const fallback = QUESTIONS_DB[category] || [];
+        if (!qs) qs = fallback.map(({ id, text, imageUrl }) => ({ id, text, imageUrl }));
+        if (!answers) answers = Object.fromEntries(fallback.map(q => [q.id, q.correctAnswer]));
+
+        return qs.map(q => ({ ...q, correctAnswer: answers[q.id] ?? '' }));
+    },
+    // Solo para el admin: separa enunciado y respuesta antes de guardar en las dos colecciones.
+    saveQuestionsFull: async (category, questions) => {
+        const qs      = questions.map(({ id, text, imageUrl }) => ({ id, text, ...(imageUrl ? { imageUrl } : {}) }));
+        const answers = {};
+        questions.forEach(q => { answers[q.id] = q.correctAnswer; });
+        const updatedAt = new Date().toISOString();
+        await setDoc(doc(db, "questions", category), { questions: qs, updatedAt });
+        await setDoc(doc(db, "answer_keys", category), { answers, updatedAt });
+    },
+    // Imagen adjunta a un ejercicio (ej. figura de geometría). Solo .jpg/.png, máx 5MB.
+    uploadExerciseImage: async (category, qId, file) => {
+        const ext  = file.type === 'image/png' ? 'png' : 'jpg';
+        const path = `exercise-images/${category}/${qId}-${Date.now()}.${ext}`;
+        const fileRef = ref(storage, path);
+        await uploadBytes(fileRef, file);
+        return await getDownloadURL(fileRef);
+    },
+    deleteExerciseImage: async (url) => {
+        try {
+            await deleteObject(ref(storage, url));
+        } catch (_) { /* puede que ya no exista; no es bloqueante */ }
     },
     deleteSubmission: async (uid) => {
         await deleteDoc(doc(db, "submissions", uid));

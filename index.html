@@ -18,9 +18,8 @@
             text-align: center;
             margin-bottom: 2rem;
         }
-        .brand-icon { font-size: 3.5rem; display: block; margin-bottom: 0.5rem; }
-        .brand h1  { font-size: 2rem; margin-bottom: 0.25rem; }
-        .brand p   { font-size: 0.95rem; color: var(--text-muted); margin: 0; }
+        .brand h1  { margin-bottom: 0.3rem; }
+        .brand p   { font-size: 0.95rem; color: var(--text-muted); margin: 0; font-weight: 600; }
 
         .google-btn {
             display: flex;
@@ -112,7 +111,7 @@
 
         <!-- Brand -->
         <div class="brand">
-            <span class="brand-icon">🏆</span>
+            <span class="hero-badge">🏆</span>
             <h1>Active Maths Championship</h1>
             <p>Olimpiadas Matemáticas · Active Learning 2026</p>
         </div>
@@ -142,6 +141,8 @@
                     </svg>
                     Continuar con Google
                 </button>
+
+                <p id="loginError" class="error-banner hidden">No pudimos iniciar sesión. Probá de nuevo en un momento.</p>
 
                 <div class="divider">o</div>
 
@@ -231,8 +232,9 @@
         });
 
         document.getElementById('googleLoginBtn').addEventListener('click', () => {
+            document.getElementById('loginError').classList.add('hidden');
             signInWithPopup(auth, provider)
-                .catch(err => alert('Error al iniciar sesión: ' + err.message));
+                .catch(() => document.getElementById('loginError').classList.remove('hidden'));
         });
 
         profileForm.addEventListener('submit', async (e) => {
