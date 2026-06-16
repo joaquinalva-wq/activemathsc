@@ -33,10 +33,10 @@ export const CATEGORIES = [
     { id: "pitagoras",  name: "Pitágoras" }
 ];
 
-// "pitagoras" reutiliza el banco de preguntas de "basico" (sin mostrar el motivo al estudiante)
-export const CATEGORY_BASE_MAP = {
-    "pitagoras": "basico"
-};
+// Mapea una categoría derivada a la categoría base que comparte su banco de
+// preguntas en Firestore. Las 4 categorías actuales (basico/intermedio/
+// avanzado/pitagoras) tienen banco propio, así que este mapa queda vacío.
+export const CATEGORY_BASE_MAP = {};
 
 export const QUESTIONS_DB = {
     "basico": [
@@ -107,7 +107,7 @@ export const QUESTIONS_DB = {
     ]
 };
 
-QUESTIONS_DB["pitagoras"] = QUESTIONS_DB["basico"];
+QUESTIONS_DB["pitagoras"] = [];
 
 export const DB = {
     saveUser: async (uid, userData) => {

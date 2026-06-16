@@ -444,7 +444,7 @@ import {
 
 // ══ State ════════════════════════════════════════
 let allSubmissions   = [];
-let loadedQuestions  = {};  // { basico: [...], intermedio: [...], avanzado: [...] } (pitagoras reusa basico)
+let loadedQuestions  = {};  // { basico: [...], intermedio: [...], avanzado: [...], pitagoras: [...] }
 let currentExCat     = 'basico';
 let editingIdx       = -1;  // index of exercise being edited
 
@@ -453,8 +453,7 @@ const ALLOWED_EMAILS = [
     'colaboradores.aprendizajes@activelearning.com.ar'
 ];
 
-// "pitagoras" no tiene banco propio: reutiliza el de "basico" (ver CATEGORY_BASE_MAP)
-const BASE_CATS = ['basico', 'intermedio', 'avanzado'];
+const BASE_CATS = ['basico', 'intermedio', 'avanzado', 'pitagoras'];
 
 // ══ DOM refs ════════════════════════════════════
 const loginOverlay = document.getElementById('loginOverlay');
@@ -935,7 +934,7 @@ function initExerciseTab() {
     BASE_CATS.forEach(cat => {
         const btn = document.createElement('button');
         btn.className = 'cat-pill' + (cat === currentExCat ? ' active' : '');
-        btn.textContent = { basico: 'Básico', intermedio: 'Intermedio', avanzado: 'Avanzado' }[cat];
+        btn.textContent = { basico: 'Básico', intermedio: 'Intermedio', avanzado: 'Avanzado', pitagoras: 'Pitágoras' }[cat];
         btn.addEventListener('click', () => {
             document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
@@ -1074,7 +1073,7 @@ async function deleteExercise(i) {
 
 document.getElementById('addExerciseBtn').addEventListener('click', () => {
     const qs   = loadedQuestions[currentExCat] || [];
-    const prefix = { basico: 'b', intermedio: 'i', avanzado: 'a' }[currentExCat] || 'x';
+    const prefix = { basico: 'b', intermedio: 'i', avanzado: 'a', pitagoras: 'p' }[currentExCat] || 'x';
     qs.push({ id: `${prefix}${qs.length + 1}`, text: '', correctAnswer: '' });
     loadedQuestions[currentExCat] = qs;
     editingIdx = qs.length - 1;

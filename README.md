@@ -30,10 +30,13 @@ Hay exactamente 4 categorías visibles para el estudiante: **Básico** (7N y 8N)
 **Intermedio** (9N y 10N), **Avanzado** (11N y 12N) y **Pitágoras**.
 
 `Pitágoras` es la categoría para estudiantes con diagnósticos que los limitan a
-rendir al nivel de Básico (ver `CATEGORY_BASE_MAP` en `js/data.js`). Comparte el
-mismo banco de ejercicios que Básico — no tiene pestaña propia en "Ejercicios" del
-panel admin, así evitamos mantener dos bancos duplicados. La UI nunca menciona el
+rendir al nivel de Básico. Tiene su propio banco de ejercicios (pestaña propia
+en "Ejercicios" del panel admin, igual que las otras tres), pensado a nivel de
+dificultad de Básico pero con problemas curados aparte. La UI nunca menciona el
 motivo de la categoría al estudiante, solo el nombre.
+
+(`CATEGORY_BASE_MAP` en `js/data.js` queda preparado por si en el futuro una
+categoría necesita compartir banco con otra, pero hoy las 4 son independientes.)
 
 ## Modelo de datos (Firestore)
 
