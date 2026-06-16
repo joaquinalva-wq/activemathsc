@@ -790,7 +790,7 @@ function viewDetails(sub) {
         html += `
             <div class="answer-block">
                 <h4>Ejercicio ${i + 1}</h4>
-                <div class="q-text">${q ? esc(q.text) : '(Ejercicio no encontrado)'}</div>
+                <div class="q-text">${q ? q.text : '(Ejercicio no encontrado)'}</div>
                 ${q?.imageUrl ? `<img src="${esc(q.imageUrl)}" alt="Figura del ejercicio" class="exercise-image-thumb" style="margin-bottom:1rem;">` : ''}
                 <div class="answer-row">
                     <span style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">Respuesta:</span>
@@ -962,16 +962,18 @@ function renderExerciseList() {
                 <div class="exercise-card-header">
                     <span class="exercise-number">${i + 1}</span>
                     <div style="flex:1;">
-                        <div class="exercise-text-display">${esc(q.text)}</div>
+                        <div class="exercise-text-display">${q.text}</div>
                         ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" alt="Figura del ejercicio" class="exercise-image-thumb">` : ''}
                         <div class="exercise-answer">Respuesta correcta: <strong>${esc(q.correctAnswer)}</strong></div>
                     </div>
                     <div style="display:flex; gap:0.5rem; flex-shrink:0;">
+                        <button class="btn btn-secondary btn-sm preview-ex-btn">👁 Vista previa</button>
                         <button class="btn btn-secondary btn-sm edit-ex-btn">Editar</button>
                         <button class="btn btn-secondary btn-sm" style="color:var(--accent); border-color:var(--accent);" data-del="${i}">Eliminar</button>
                     </div>
                 </div>`;
 
+            div.querySelector('.preview-ex-btn').addEventListener('click', () => previewExercise(q));
             div.querySelector('.edit-ex-btn').addEventListener('click', () => {
                 editingIdx = i;
                 renderExerciseList();
@@ -1000,6 +1002,7 @@ function renderExerciseList() {
                 <input type="text" class="exercise-answer-input" id="editAnswer_${i}" value="${esc(q.correctAnswer)}">
                 <div style="display:flex; gap:0.75rem; margin-top:1rem;">
                     <button class="btn btn-success btn-sm save-ex-btn">✓ Guardar</button>
+                    <button class="btn btn-secondary btn-sm preview-ex-btn">👁 Vista previa</button>
                     <button class="btn btn-secondary btn-sm cancel-ex-btn">Cancelar</button>
                 </div>`;
 
@@ -1022,6 +1025,10 @@ function renderExerciseList() {
             preview.addEventListener('load', () => { status.style.display = 'none'; });
 
             div.querySelector('.save-ex-btn').addEventListener('click', () => saveExercise(i));
+            div.querySelector('.preview-ex-btn').addEventListener('click', () => previewExercise({
+                text: document.getElementById(`editText_${i}`).value,
+                imageUrl: document.getElementById(`imagePath_${i}`).value.trim()
+            }));
             div.querySelector('.cancel-ex-btn').addEventListener('click', () => {
                 editingIdx = -1;
                 renderExerciseList();
@@ -1034,6 +1041,20 @@ function renderExerciseList() {
     if (!qs.length) {
         list.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:2rem;">No hay ejercicios. Hacé clic en "+ Agregar Ejercicio".</p>';
     }
+}
+
+// Muestra el ejercicio con el mismo markup/CSS que exam.html, para que sea
+// exactamente lo que ve el estudiante (mismo enunciado en HTML, misma imagen).
+function previewExercise(q) {
+    document.getElementById('modalTitle').textContent = 'Vista previa del ejercicio';
+    document.getElementById('modalSubtitle').textContent = 'Así lo ve el estudiante durante el examen';
+    document.getElementById('modalContent').innerHTML = `
+        <div class="question-container">
+            <div class="question-text">${q.text || '<em style="color:var(--text-muted);">(sin enunciado)</em>'}</div>
+            ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" alt="Figura del ejercicio" class="question-image">` : ''}
+        </div>`;
+    document.getElementById('detailModal').classList.remove('hidden');
+    if (window.MathJax) MathJax.typesetPromise([document.getElementById('modalContent')]);
 }
 
 async function saveExercise(i) {

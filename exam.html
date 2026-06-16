@@ -391,7 +391,7 @@
             void questionContainer.offsetWidth;
             questionContainer.classList.add('question-enter');
 
-            questionText.textContent = q.text;
+            questionText.innerHTML = q.text;
             if (q.imageUrl) {
                 questionImage.src = q.imageUrl;
                 questionImage.classList.remove('hidden');
