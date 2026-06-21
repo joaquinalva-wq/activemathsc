@@ -68,12 +68,30 @@
             border: 1px solid #E2E8F0;
             border-radius: 8px;
             padding: 0.85rem 1rem;
-            font-size: 0.9rem;
+            font-size: 0.93rem;
             white-space: pre-line;
             color: var(--text-main);
             min-height: 50px;
-            max-height: 200px;
-            overflow-y: auto;
+            line-height: 1.65;
+        }
+        /* Classify button inside the detail modal */
+        #modalClassifyBtn {
+            font-size: 0.88rem;
+            padding: 0.5rem 1.1rem;
+            border-radius: 10px;
+            border: 2px solid #E2E8F0;
+            background: white;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.18s;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        #modalClassifyBtn:hover { border-color: var(--brand-orange); color: #92400E; }
+        #modalClassifyBtn.active {
+            background: linear-gradient(135deg,#FEF3C7,#FDE68A);
+            color: #78350F; border-color: var(--brand-orange);
+            box-shadow: 0 2px 8px rgba(243,156,18,0.3);
         }
 
         /* ── Classified export info ── */
@@ -422,12 +440,15 @@
 ══════════════════════════════════════════════ -->
 <div id="detailModal" class="modal hidden">
     <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid #F1F5F9;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid #F1F5F9; gap:1rem; flex-wrap:wrap;">
             <div>
                 <h2 id="modalTitle" style="margin:0;">Detalle de Examen</h2>
                 <p id="modalSubtitle" style="margin:0.25rem 0 0; font-size:0.85rem;"></p>
             </div>
-            <button class="btn btn-secondary btn-sm" id="closeModal">✕ Cerrar</button>
+            <div style="display:flex; gap:0.6rem; align-items:center; flex-shrink:0;">
+                <button id="modalClassifyBtn" style="display:none;">○ Marcar como clasificado</button>
+                <button class="btn btn-secondary btn-sm" id="closeModal">✕ Cerrar</button>
+            </div>
         </div>
         <div id="modalContent"></div>
     </div>
@@ -815,6 +836,25 @@ function viewDetails(sub) {
     });
 
     document.getElementById('modalContent').innerHTML = html;
+
+    // Classify button: visible and wired to this specific submission
+    const classifyBtn = document.getElementById('modalClassifyBtn');
+    classifyBtn.style.display = '';
+    const syncBtn = () => {
+        classifyBtn.textContent = sub.classified ? '🏅 Clasificado' : '○ Marcar como clasificado';
+        classifyBtn.className   = sub.classified ? 'active' : '';
+        classifyBtn.disabled    = false;
+    };
+    syncBtn();
+    classifyBtn.onclick = async () => {
+        classifyBtn.disabled    = true;
+        classifyBtn.textContent = '…';
+        await toggleClassified(sub, !sub.classified);
+        syncBtn();
+        updateCounts();
+        renderResults();
+    };
+
     document.getElementById('detailModal').classList.remove('hidden');
     if (window.MathJax) MathJax.typesetPromise([document.getElementById('modalContent')]);
 }
@@ -1054,6 +1094,7 @@ function renderExerciseList() {
 // Muestra el ejercicio con el mismo markup/CSS que exam.html, para que sea
 // exactamente lo que ve el estudiante (mismo enunciado en HTML, misma imagen).
 function previewExercise(q) {
+    document.getElementById('modalClassifyBtn').style.display = 'none';
     document.getElementById('modalTitle').textContent = 'Vista previa del ejercicio';
     document.getElementById('modalSubtitle').textContent = 'Así lo ve el estudiante durante el examen';
     document.getElementById('modalContent').innerHTML = `
