@@ -161,7 +161,7 @@
             <form id="profileForm" class="hidden">
                 <p style="font-size: 0.9rem; text-align: center; margin-bottom: 1.5rem;">
                     <span class="step-tag">2</span>
-                    ¡Hola <strong id="displayNameDisplay"></strong>! Completá tu colegio y categoría para continuar.
+                    ¡Hola <strong id="displayNameDisplay"></strong>! <span id="profileInstruction">Elegí tu colegio y categoría para acceder.</span>
                 </p>
 
                 <div class="form-group">
@@ -185,7 +185,7 @@
                 </div>
 
                 <div style="background: #FEF9C3; border: 1px solid #FDE68A; border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: #92400E;">
-                    ⚠️ Asegurate de elegir el colegio y la categoría correctos. No podrás cambiarlo después.
+                    ⚠️ Asegurate de elegir el colegio y la categoría correctos antes de comenzar la evaluación.
                 </div>
 
                 <button type="submit" id="saveProfileBtn" class="btn btn-primary w-full">
@@ -200,7 +200,7 @@
     </div>
 
     <script type="module">
-        import { auth, provider, signInWithPopup, onAuthStateChanged, SCHOOLS, CATEGORIES, DB } from './js/data.js';
+        import { auth, provider, signInWithPopup, onAuthStateChanged, SCHOOLS, CATEGORIES, LEGACY_CATEGORY_MAP, DB } from './js/data.js';
 
         const loginSection = document.getElementById('loginSection');
         const profileForm  = document.getElementById('profileForm');
@@ -215,21 +215,39 @@
         CATEGORIES.forEach(c => categorySelect.add(new Option(c.name, c.id)));
 
         // Auth state
+        // Lógica: si hay exam_state en Firestore (examen iniciado o enviado) → ir al examen.
+        // Si no hay exam_state → mostrar formulario de datos (nuevo registro o re-registro).
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
                 loginSection.classList.add('hidden');
                 loading.classList.remove('hidden');
 
-                const userData = await DB.getUser(user.uid);
-                if (userData) {
+                const [userData, examState] = await Promise.all([
+                    DB.getUser(user.uid),
+                    DB.getExamState(user.uid)
+                ]);
+
+                if (examState) {
+                    // Examen ya iniciado o enviado → ir a exam.html
                     window.location.href = 'exam.html';
-                } else {
-                    loading.classList.add('hidden');
-                    document.getElementById('displayNameDisplay').textContent =
-                        user.displayName || user.email;
-                    profileForm.classList.remove('hidden');
+                    return;
                 }
+
+                // Sin examen en curso: mostrar formulario (pre-rellenar si ya tenía datos)
+                loading.classList.add('hidden');
+                document.getElementById('displayNameDisplay').textContent =
+                    user.displayName || user.email;
+
+                if (userData) {
+                    // Pre-rellenar con datos existentes, normalizando categorías antiguas
+                    schoolSelect.value    = userData.school || '';
+                    categorySelect.value  = LEGACY_CATEGORY_MAP[userData.category] || userData.category || '';
+                    document.getElementById('profileInstruction').textContent =
+                        'Confirmá o actualizá tu colegio y categoría.';
+                }
+
+                profileForm.classList.remove('hidden');
             } else {
                 loginSection.classList.remove('hidden');
                 loading.classList.add('hidden');

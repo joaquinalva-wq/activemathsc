@@ -414,6 +414,8 @@
             monitoringBadge.style.display = 'flex';
             if (!isResume) {
                 try { document.documentElement.requestFullscreen(); } catch (_) {}
+                // Guardar inmediatamente para que index.html detecte el examen en curso
+                saveState();
             }
             startTimer();
             loadQuestion(currentQuestionIndex);
