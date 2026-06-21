@@ -135,8 +135,8 @@ export const DB = {
         return snap.exists() ? snap.data() : null;
     },
     saveSubmission: async (uid, submission) => {
-        await setDoc(doc(db, "submissions", uid), submission);
-        await setDoc(doc(db, "exam_states", uid), { finished: true });
+        await setDoc(doc(db, "submissions", uid), submission, { merge: true });
+        await setDoc(doc(db, "exam_states", uid), { finished: true }, { merge: true });
     },
     updateSubmission: async (uid, data) => {
         await setDoc(doc(db, "submissions", uid), data, { merge: true });

@@ -577,17 +577,29 @@
             if (timerInterval) clearInterval(timerInterval);
             collectCurrentAnswers();
 
-            await DB.saveSubmission(currentUser.uid, {
-                user:        currentUserData,
-                answers,
-                violationLog,
-                submittedAt: new Date().toISOString()
-            });
+            try {
+                await DB.saveSubmission(currentUser.uid, {
+                    user:        currentUserData,
+                    answers,
+                    violationLog,
+                    submittedAt: new Date().toISOString()
+                });
 
-            examScreen.classList.add('hidden');
-            document.getElementById('finishedScreen').classList.remove('hidden');
-            timerEl.classList.add('hidden-timer');
-            monitoringBadge.style.display = 'none';
+                examScreen.classList.add('hidden');
+                document.getElementById('finishedScreen').classList.remove('hidden');
+                timerEl.classList.add('hidden-timer');
+                monitoringBadge.style.display = 'none';
+            } catch (err) {
+                // Mostrar error y rehabilitar botón para que pueda reintentar
+                console.error('Error al enviar evaluación:', err);
+                finishBtn.textContent = '📬 Reintentar envío';
+                finishBtn.disabled = false;
+                const errEl = document.getElementById('submitError') || document.createElement('p');
+                errEl.id = 'submitError';
+                errEl.style.cssText = 'color:#B91C1C;font-size:0.88rem;text-align:center;margin-top:0.75rem;font-weight:600;';
+                errEl.textContent = '⚠️ Error al enviar. Verificá tu conexión e intentá de nuevo.';
+                finishBtn.parentElement.appendChild(errEl);
+            }
         }
 
         // ── Detección de cambio de ventana/pestaña ─────────

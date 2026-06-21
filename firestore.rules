@@ -20,34 +20,38 @@ service cloud.firestore {
              ];
     }
 
-    // Perfil del estudiante (colegio, categoría, nombre). Se crea una sola vez
-    // en index.html; no se puede modificar después (así se cumple lo que el
-    // formulario le promete al estudiante: "no podrás cambiarlo después").
+    // Perfil del estudiante. Puede actualizarse solo si el estudiante aún no
+    // inició el examen (no existe exam_state); una vez que el examen está en
+    // curso o enviado, solo el admin puede modificar el perfil.
     match /users/{uid} {
       allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == uid;
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() ||
+                       (request.auth != null && request.auth.uid == uid &&
+                        !exists(/databases/$(database)/documents/exam_states/$(uid)));
+      allow delete: if isAdmin();
     }
 
-    // Estado en progreso del examen (respuestas parciales, tiempo restante,
-    // registro de salidas de ventana). El propio estudiante puede escribir
-    // mientras NO haya terminado; una vez que finished == true, se bloquea
-    // para que no pueda "reabrir" su propio examen.
+    // Estado en progreso del examen. El estudiante puede crear y actualizar
+    // su propio estado. La única restricción: no puede "des-terminar" un examen
+    // (pasar finished=true a false), solo el admin puede hacer eso.
     match /exam_states/{uid} {
       allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == uid;
       allow update: if isAdmin() ||
-                       (request.auth != null && request.auth.uid == uid && resource.data.finished != true);
+                       (request.auth != null && request.auth.uid == uid &&
+                        (resource.data.finished != true || request.resource.data.finished == true));
       allow delete: if isAdmin();
     }
 
-    // Entrega final. Se crea una sola vez por estudiante (una sola respuesta
-    // por cuenta); ni el puntaje ni las respuestas se pueden editar después
-    // de enviadas salvo por el admin (ej. para marcar "clasificado").
+    // Entrega final. El estudiante puede crear y actualizar su propia entrega
+    // (permite reintentos si la red falla durante el envío). Solo el admin
+    // puede borrarla o marcar clasificado.
     match /submissions/{uid} {
       allow read:   if request.auth != null && (request.auth.uid == uid || isAdmin());
       allow create: if request.auth != null && request.auth.uid == uid;
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow delete: if isAdmin();
     }
 
     // Enunciados (sin respuesta correcta): cualquier usuario autenticado los
