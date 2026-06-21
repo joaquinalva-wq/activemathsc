@@ -333,10 +333,11 @@
             document.getElementById('welcomeCategory').textContent = catName;
             document.getElementById('welcomeSchool').textContent = currentUserData.school;
 
-            // Cargar preguntas y configuración en paralelo
-            const [loadedQs, config] = await Promise.all([
+            // Cargar todo en paralelo: preguntas, config y estado guardado a la vez
+            const [loadedQs, config, savedState] = await Promise.all([
                 DB.getQuestions(currentUserData.category),
-                DB.getConfig()
+                DB.getConfig(),
+                DB.getExamState(user.uid)
             ]);
             questions = loadedQs;
 
@@ -347,8 +348,6 @@
 
             loadingOverlay.classList.add('hidden');
             mainContainer.classList.remove('hidden');
-
-            const savedState = await DB.getExamState(user.uid);
 
             if (savedState?.finished) {
                 document.getElementById('finishedScreen').classList.remove('hidden');
@@ -494,8 +493,10 @@
             }
 
             renderProgressDots();
-            if (window.MathJax) MathJax.typesetPromise([questionText]);
-            examScreen.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Solo llamar MathJax si el texto tiene sintaxis LaTeX real
+            if (window.MathJax && (q.text.includes('\\(') || q.text.includes('\\[') || q.text.includes('$'))) {
+                MathJax.typesetPromise([questionText]);
+            }
         }
 
         function renderProgressDots() {
@@ -530,8 +531,8 @@
         justificationInput.addEventListener('blur', collectCurrentAnswers);
 
         // ── Submit: modal en vez de confirm() ─────────────
-        finishBtn.addEventListener('click', async () => {
-            await saveState();
+        finishBtn.addEventListener('click', () => {
+            collectCurrentAnswers();
             const unanswered = answers.filter(a => !a.answer?.trim()).length;
             const unansweredEl = document.getElementById('submitUnanswered');
             if (unanswered > 0) {
@@ -569,7 +570,7 @@
             finishBtn.textContent = 'Enviando…';
             finishBtn.disabled    = true;
             if (timerInterval) clearInterval(timerInterval);
-            await saveState();
+            collectCurrentAnswers();
 
             await DB.saveSubmission(currentUser.uid, {
                 user:        currentUserData,
