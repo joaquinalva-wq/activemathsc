@@ -400,7 +400,7 @@
             timerInterval = setInterval(() => {
                 timeLeft--;
                 updateTimerDisplay();
-                if (timeLeft % 30 === 0 && timeLeft > 0) saveState();
+                if (timeLeft % 300 === 0 && timeLeft > 0) saveState();
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     submitExam();

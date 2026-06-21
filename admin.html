@@ -439,7 +439,7 @@
 <script type="module">
 import {
     auth, provider, signInWithPopup, onAuthStateChanged, signOut,
-    DB, SCHOOLS, CATEGORIES, CATEGORY_BASE_MAP
+    DB, SCHOOLS, CATEGORIES, CATEGORY_BASE_MAP, LEGACY_CATEGORY_MAP
 } from './js/data.js';
 
 // ══ State ════════════════════════════════════════
@@ -536,7 +536,10 @@ async function loadData() {
 // El estudiante nunca recibe la respuesta correcta (ver js/data.js DB.getQuestions),
 // así que el puntaje se calcula acá, con la clave que solo el admin puede leer.
 function gradeSubmission(sub) {
-    const base = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+    const normCat = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
+    // Normalize legacy category in-place so display is consistent everywhere
+    if (sub.user && sub.user.category !== normCat) sub.user.category = normCat;
+    const base = CATEGORY_BASE_MAP[normCat] || normCat;
     const qs   = loadedQuestions[base] || [];
     let correct = 0;
     (sub.answers || []).forEach(ans => {
@@ -662,7 +665,9 @@ function renderResults() {
 
     // Show/hide exercise column header
     if (exercise) {
-        const qs   = loadedQuestions[CATEGORY_BASE_MAP[document.getElementById('filterCategory').value] || document.getElementById('filterCategory').value || 'basico'] || [];
+        const rawC = document.getElementById('filterCategory').value;
+        const normC = LEGACY_CATEGORY_MAP[rawC] || rawC || 'basico';
+        const qs   = loadedQuestions[CATEGORY_BASE_MAP[normC] || normC] || [];
         const q    = qs.find(q => q.id === exercise);
         const idx  = qs.indexOf(q);
         exHeader.textContent = idx >= 0 ? `Ej. ${idx + 1}` : 'Ejercicio';
@@ -699,7 +704,8 @@ function renderResults() {
         let exerciseCell = '';
         if (exercise) {
             const ans  = sub.answers?.find(a => a.qId === exercise);
-            const base = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+            const nc   = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
+            const base = CATEGORY_BASE_MAP[nc] || nc;
             const q    = (loadedQuestions[base] || []).find(q => q.id === exercise);
             if (ans && q) {
                 const ok = ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
@@ -758,8 +764,9 @@ function renderResults() {
 
 // ── Detail modal ──────────────────────────────
 function viewDetails(sub) {
-    const base  = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
-    const qList = loadedQuestions[base] || [];
+    const normCat = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
+    const base    = CATEGORY_BASE_MAP[normCat] || normCat;
+    const qList   = loadedQuestions[base] || [];
     document.getElementById('modalTitle').textContent =
         `${sub.user.lastName || ''}, ${sub.user.firstName || ''}`;
     document.getElementById('modalSubtitle').textContent =
@@ -862,7 +869,8 @@ function renderExerciseStats(subs, catFilter) {
     // Collect all exercise IDs that appear in these submissions
     const exMap = {};
     subs.forEach(sub => {
-        const base = CATEGORY_BASE_MAP[sub.user?.category] || sub.user?.category;
+        const nc   = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
+        const base = CATEGORY_BASE_MAP[nc] || nc;
         const qs   = loadedQuestions[base] || [];
         (sub.answers || []).forEach((ans, i) => {
             const q = qs.find(q => q.id === ans.qId);
@@ -1204,73 +1212,177 @@ function printClassified(bySchool) {
         if (school && s.user?.school !== school) return false;
         if (cat    && s.user?.category !== cat)  return false;
         return true;
-    }).sort((a, b) => b.autoGrade.score - a.autoGrade.score);
+    }).sort((a, b) => {
+        // Sort by category order, then by score desc
+        const catOrder = ['basico','intermedio','avanzado','pitagoras'];
+        const aCat = catOrder.indexOf(a.user?.category);
+        const bCat = catOrder.indexOf(b.user?.category);
+        if (aCat !== bCat) return aCat - bCat;
+        return b.autoGrade.score - a.autoGrade.score;
+    });
 
     if (!classified.length) {
         showToast('No hay clasificados con los filtros actuales.', 'error');
         return;
     }
 
-    const now     = new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' });
-    const title   = bySchool ? 'Clasificados por Colegio' : 'Lista General de Clasificados';
+    const now   = new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' });
+    const title = bySchool ? 'Clasificados por Colegio' : 'Lista General de Clasificados';
 
-    const tableRowsFn = (list) => list.map((s, i) => {
+    // Shared CSS for the print document
+    const css = `
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #0F172A; font-size: 10.5pt; line-height: 1.5;
+        }
+        .page { padding: 1.8cm 2.2cm; }
+        .brand-bar {
+            height: 6px;
+            background: linear-gradient(to right,#E74C3C 0% 20%,#F39C12 20% 40%,#27AE60 40% 60%,#16A085 60% 80%,#1A6EE8 80% 100%);
+            border-radius: 3px; margin-bottom: 22pt;
+        }
+        .doc-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 20pt; }
+        .comp-name { font-size: 20pt; font-weight: 900; color: #1A6EE8; letter-spacing: -0.5px; line-height: 1.1; }
+        .comp-sub  { font-size: 9pt; color: #64748B; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-top: 4pt; }
+        .doc-meta  { text-align: right; font-size: 8pt; color: #94A3B8; line-height: 1.7; }
+        .doc-title {
+            font-size: 13pt; font-weight: 700; color: #0F172A;
+            border-bottom: 2px solid #E2E8F0; padding-bottom: 8pt; margin-bottom: 14pt;
+        }
+        .summary-box {
+            background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px;
+            padding: 9pt 14pt; margin-bottom: 16pt; font-size: 9pt; color: #1E40AF;
+        }
+        .summary-box strong { font-weight: 700; }
+        .school-header {
+            background: #F8FAFF; border-left: 4px solid #1A6EE8;
+            border-radius: 0 6px 6px 0; padding: 10pt 14pt; margin-bottom: 12pt;
+        }
+        .school-header h2 { font-size: 12pt; font-weight: 800; color: #0F172A; }
+        .school-header p  { font-size: 8.5pt; color: #64748B; margin-top: 2pt; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 14pt; }
+        thead tr { background: #1A6EE8; }
+        th { color: white; padding: 7pt 9pt; text-align: left; font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 7.5pt 9pt; border-bottom: 1px solid #E2E8F0; font-size: 9.5pt; }
+        tbody tr:nth-child(even) td { background: #F8FAFC; }
+        .rank { text-align: center; font-weight: 700; color: #64748B; width: 24pt; }
+        .rank.gold   { color: #D97706; }
+        .rank.silver { color: #64748B; }
+        .rank.bronze { color: #92400E; }
+        .score { text-align: center; font-weight: 700; }
+        .score-good { color: #166534; }
+        .score-partial { color: #92400E; }
+        .school-total {
+            font-size: 8.5pt; color: #64748B; text-align: right;
+            margin-bottom: 20pt; padding-top: 4pt;
+        }
+        .page-break { page-break-before: always; }
+        .footer-line {
+            border-top: 1px solid #E2E8F0; margin-top: 20pt; padding-top: 8pt;
+            font-size: 7.5pt; color: #CBD5E1; text-align: center;
+        }
+        @page { margin: 0; }
+        @media print { .page-break { page-break-before: always; } }
+    `;
+
+    const tableRows = (list, showSchool) => list.map((s, i) => {
         const catName = CATEGORIES.find(c => c.id === s.user?.category)?.name || s.user?.category || '—';
+        const rankCls = i === 0 ? 'gold' : (i === 1 ? 'silver' : (i === 2 ? 'bronze' : ''));
+        const scoreCls = s.autoGrade.score === s.autoGrade.total ? 'score-good' : 'score-partial';
         return `<tr>
-            <td>${i + 1}</td>
-            <td>${s.user.lastName || ''}, ${s.user.firstName || ''}</td>
-            ${bySchool ? '' : `<td>${s.user.school || '—'}</td>`}
-            <td>${catName}</td>
-            <td>${s.autoGrade.score} / ${s.autoGrade.total}</td>
+            <td class="rank ${rankCls}">${i + 1}</td>
+            <td><strong>${esc(s.user.lastName || '')}</strong>, ${esc(s.user.firstName || '')}</td>
+            ${showSchool ? `<td>${esc(s.user.school || '—')}</td>` : ''}
+            <td>${esc(catName)}</td>
+            <td class="score ${scoreCls}">${s.autoGrade.score} / ${s.autoGrade.total}</td>
         </tr>`;
     }).join('');
 
     let body = '';
+
     if (bySchool) {
         const schools = [...new Set(classified.map(s => s.user?.school))].sort();
         schools.forEach((sch, idx) => {
             const list = classified.filter(s => s.user?.school === sch);
-            body += `<div class="${idx > 0 ? 'print-page-break' : ''}">
-                <p class="school-heading">Colegio: ${sch}</p>
-                <table>
-                    <thead><tr><th>#</th><th>Apellido y Nombre</th><th>Categoría</th><th>Puntaje</th></tr></thead>
-                    <tbody>${tableRowsFn(list)}</tbody>
-                </table>
+            body += `
+            <div class="${idx > 0 ? 'page-break' : ''}">
+                <div class="page">
+                    <div class="brand-bar"></div>
+                    <div class="doc-header">
+                        <div>
+                            <div class="comp-name">Active Maths Championship</div>
+                            <div class="comp-sub">Olimpiadas Matemáticas · Active Learning 2026</div>
+                        </div>
+                        <div class="doc-meta">
+                            Generado el ${esc(now)}<br>
+                            ${cat ? esc(CATEGORIES.find(c => c.id === cat)?.name || cat) : 'Todas las categorías'}
+                        </div>
+                    </div>
+                    <div class="school-header">
+                        <h2>Colegio ${esc(sch)}</h2>
+                        <p>Los siguientes estudiantes clasificaron a la Fase Final del Active Maths Championship 2026.</p>
+                    </div>
+                    <table>
+                        <thead><tr>
+                            <th class="rank">#</th>
+                            <th>Apellido y Nombre</th>
+                            <th>Categoría</th>
+                            <th class="score">Puntaje</th>
+                        </tr></thead>
+                        <tbody>${tableRows(list, false)}</tbody>
+                    </table>
+                    <div class="school-total">${list.length} clasificado${list.length !== 1 ? 's' : ''} en este colegio</div>
+                    <div class="footer-line">Active Maths Championship 2026 · Active Learning · Documento generado automáticamente</div>
+                </div>
             </div>`;
         });
     } else {
-        body = `<table>
-            <thead><tr><th>#</th><th>Apellido y Nombre</th><th>Colegio</th><th>Categoría</th><th>Puntaje</th></tr></thead>
-            <tbody>${tableRowsFn(classified)}</tbody>
-        </table>`;
+        const schools = new Set(classified.map(s => s.user?.school)).size;
+        body = `
+        <div class="page">
+            <div class="brand-bar"></div>
+            <div class="doc-header">
+                <div>
+                    <div class="comp-name">Active Maths Championship</div>
+                    <div class="comp-sub">Olimpiadas Matemáticas · Active Learning 2026</div>
+                </div>
+                <div class="doc-meta">
+                    Generado el ${esc(now)}<br>
+                    ${cat ? esc(CATEGORIES.find(c => c.id === cat)?.name || cat) : 'Todas las categorías'}<br>
+                    ${school ? esc(school) : 'Todos los colegios'}
+                </div>
+            </div>
+            <div class="doc-title">Lista General de Clasificados — Fase Final</div>
+            <div class="summary-box">
+                <strong>${classified.length}</strong> estudiantes clasificados · <strong>${schools}</strong> colegios representados
+                ${cat ? ' · Categoría: <strong>' + esc(CATEGORIES.find(c => c.id === cat)?.name || cat) + '</strong>' : ''}
+            </div>
+            <table>
+                <thead><tr>
+                    <th class="rank">#</th>
+                    <th>Apellido y Nombre</th>
+                    <th>Colegio</th>
+                    <th>Categoría</th>
+                    <th class="score">Puntaje</th>
+                </tr></thead>
+                <tbody>${tableRows(classified, true)}</tbody>
+            </table>
+            <div class="footer-line">Active Maths Championship 2026 · Active Learning · Documento generado automáticamente</div>
+        </div>`;
     }
 
-    const html = `<!DOCTYPE html><html lang="es"><head>
-        <meta charset="UTF-8">
-        <title>${title} - Active Maths Championship</title>
-        <style>
-            body { font-family: Arial, sans-serif; color: #000; padding: 1.5cm; }
-            h1 { font-size: 20pt; text-align: center; border-bottom: 2pt solid #000; padding-bottom: 8pt; margin-bottom: 4pt; }
-            .meta { text-align: center; font-size: 10pt; color: #555; margin-bottom: 20pt; }
-            .school-heading { font-size: 14pt; font-weight: bold; margin: 20pt 0 6pt; border-bottom: 1pt solid #888; padding-bottom: 4pt; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 12pt; font-size: 10pt; }
-            th, td { border: 1pt solid #aaa; padding: 6pt 8pt; text-align: left; }
-            th { background: #eee; font-weight: bold; }
-            .print-page-break { page-break-before: always; }
-            @media print { .print-page-break { page-break-before: always; } }
-        </style>
-    </head><body>
-        <h1>Active Maths Championship 2025</h1>
-        <p class="meta">${title} · Generado el ${now}${school ? ' · ' + school : ''}${cat ? ' · ' + (CATEGORIES.find(c => c.id === cat)?.name || cat) : ''}</p>
-        ${body}
-    </body></html>`;
+    const html = `<!DOCTYPE html><html lang="es">
+    <head><meta charset="UTF-8"><title>${esc(title)} - Active Maths Championship 2026</title>
+    <style>${css}</style></head>
+    <body>${body}</body></html>`;
 
     const win = window.open('', '_blank');
     if (!win) { showToast('Activá las ventanas emergentes para exportar.', 'error'); return; }
     win.document.write(html);
     win.document.close();
     win.focus();
-    setTimeout(() => { win.print(); }, 600);
+    setTimeout(() => { win.print(); }, 700);
 }
 
 // ══ CONFIGURACIÓN TAB ═══════════════════════════
