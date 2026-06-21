@@ -431,10 +431,12 @@
         async function saveState() {
             collectCurrentAnswers();
             showSaving(true);
-            await DB.saveExamState(currentUser.uid, {
-                answers, currentQuestionIndex, timeLeft, violationLog,
-                updatedAt: new Date().toISOString()
-            });
+            try {
+                await DB.saveExamState(currentUser.uid, {
+                    answers, currentQuestionIndex, timeLeft, violationLog,
+                    updatedAt: new Date().toISOString()
+                });
+            } catch (_) { /* fallo silencioso, se reintenta en el próximo guardado */ }
             showSaving(false);
         }
 
@@ -512,7 +514,6 @@
                         collectCurrentAnswers();
                         currentQuestionIndex = i;
                         loadQuestion(currentQuestionIndex);
-                        saveState();
                     }
                 });
                 progressDots.appendChild(dot);
@@ -520,15 +521,17 @@
         }
 
         // ── Navigation ─────────────────────────────────────
+        // Navegación: solo memoria local, sin Firestore. El guardado ocurre
+        // al salir de un campo (blur) y en el timer cada 5 minutos.
         prevBtn.addEventListener('click', () => {
-            collectCurrentAnswers(); currentQuestionIndex--; loadQuestion(currentQuestionIndex); saveState();
+            collectCurrentAnswers(); currentQuestionIndex--; loadQuestion(currentQuestionIndex);
         });
         nextBtn.addEventListener('click', () => {
-            collectCurrentAnswers(); currentQuestionIndex++; loadQuestion(currentQuestionIndex); saveState();
+            collectCurrentAnswers(); currentQuestionIndex++; loadQuestion(currentQuestionIndex);
         });
-        // blur solo guarda en memoria local, no espera Firestore
-        answerInput.addEventListener('blur', collectCurrentAnswers);
-        justificationInput.addEventListener('blur', collectCurrentAnswers);
+        // Guardar en Firestore al salir de un campo — aquí el "Guardando..." tiene sentido
+        answerInput.addEventListener('blur', saveState);
+        justificationInput.addEventListener('blur', saveState);
 
         // ── Submit: modal en vez de confirm() ─────────────
         finishBtn.addEventListener('click', () => {
