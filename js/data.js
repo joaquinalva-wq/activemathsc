@@ -38,6 +38,16 @@ export const CATEGORIES = [
 // avanzado/pitagoras) tienen banco propio, así que este mapa queda vacío.
 export const CATEGORY_BASE_MAP = {};
 
+// Mapea IDs de categoría obsoletos al ID actual (retrocompatibilidad con
+// usuarios que se registraron antes del rediseño de categorías).
+export const LEGACY_CATEGORY_MAP = {
+    "basico_a":     "basico",
+    "basico_b":     "basico",
+    "intermedio_a": "intermedio",
+    "avanzado_a":   "avanzado",
+    "sol":          "pitagoras"
+};
+
 export const QUESTIONS_DB = {
     "basico": [
         {
@@ -142,18 +152,20 @@ export const DB = {
     // reglas de Firestore solo dejan leer al admin, así un estudiante no puede
     // verla por la consola del navegador ni por la pestaña Network.
     getQuestions: async (category) => {
-        const baseCategory = CATEGORY_BASE_MAP[category] || category;
+        const cat = LEGACY_CATEGORY_MAP[category] || category;
+        const baseCategory = CATEGORY_BASE_MAP[cat] || cat;
         try {
             const snap = await getDoc(doc(db, "questions", baseCategory));
             if (snap.exists() && snap.data().questions?.length > 0) {
                 return snap.data().questions;
             }
         } catch (_) { /* network error or permission denied: use defaults */ }
-        return (QUESTIONS_DB[category] || []).map(({ id, text, imageUrl }) => ({ id, text, imageUrl }));
+        return (QUESTIONS_DB[cat] || []).map(({ id, text, imageUrl }) => ({ id, text, imageUrl }));
     },
     // Solo para el admin: enunciado + respuesta correcta combinados, para editar y corregir.
     getQuestionsFull: async (category) => {
-        const baseCategory = CATEGORY_BASE_MAP[category] || category;
+        const cat = LEGACY_CATEGORY_MAP[category] || category;
+        const baseCategory = CATEGORY_BASE_MAP[cat] || cat;
         let qs = null, answers = null;
         try {
             const qSnap = await getDoc(doc(db, "questions", baseCategory));
@@ -164,7 +176,7 @@ export const DB = {
             if (aSnap.exists()) answers = aSnap.data().answers || {};
         } catch (_) { /* usar default */ }
 
-        const fallback = QUESTIONS_DB[category] || [];
+        const fallback = QUESTIONS_DB[cat] || [];
         if (!qs) qs = fallback.map(({ id, text, imageUrl }) => ({ id, text, imageUrl }));
         if (!answers) answers = Object.fromEntries(fallback.map(q => [q.id, q.correctAnswer]));
 

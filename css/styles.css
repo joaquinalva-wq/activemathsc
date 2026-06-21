@@ -957,3 +957,96 @@ header p  { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
   .print-only { display: block !important; }
 }
 .print-only { display: none; }
+
+/* ── Anti-cheat notice (pantalla de bienvenida) ─── */
+.anticheat-notice {
+  display: flex;
+  gap: 1rem;
+  background: linear-gradient(135deg, #FFF7ED, #FFFBEB);
+  border: 1.5px solid #FDE68A;
+  border-left: 4px solid #F59E0B;
+  border-radius: 14px;
+  padding: 1.1rem 1.3rem;
+  margin: 1.25rem 0;
+  text-align: left;
+}
+.anticheat-notice-icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+.anticheat-notice-body strong { display: block; color: #78350F; font-size: 0.88rem; margin-bottom: 0.3rem; font-weight: 700; }
+.anticheat-notice-body p { color: #92400E; font-size: 0.82rem; margin: 0; line-height: 1.55; font-weight: 500; }
+
+/* ── Student identity card (bienvenida) ─────────── */
+.student-identity-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: white;
+  border: 1.5px solid rgba(26,110,232,0.18);
+  border-radius: 14px;
+  padding: 1rem 1.3rem;
+  margin: 0 0 1.5rem;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+.student-avatar {
+  width: 46px; height: 46px;
+  background: linear-gradient(135deg, var(--primary-light), #DBEAFE);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; flex-shrink: 0;
+  border: 2px solid rgba(26,110,232,0.12);
+}
+.student-name { font-weight: 700; font-size: 1rem; color: var(--text-main); margin-bottom: 0.18rem; }
+.student-meta { font-size: 0.78rem; color: var(--text-muted); font-weight: 600; }
+.student-meta .sep { margin: 0 0.35rem; opacity: 0.35; }
+
+/* ── Monitoring live badge (header del examen) ───── */
+.monitoring-live {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 0.66rem; font-weight: 700;
+  color: #EF4444; text-transform: uppercase; letter-spacing: 0.9px;
+  background: rgba(239,68,68,0.08);
+  padding: 0.28rem 0.72rem;
+  border-radius: 99px;
+  border: 1px solid rgba(239,68,68,0.22);
+  white-space: nowrap;
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #EF4444;
+  animation: pulse-dot 1.4s ease infinite;
+  flex-shrink: 0;
+}
+
+/* ── Submit confirmation modal ───────────────────── */
+.submit-modal-icon { font-size: 3.2rem; display: block; margin-bottom: 0.85rem; }
+.submit-modal-body h2 { font-size: 1.35rem; margin-bottom: 0.5rem; text-align: center; }
+.submit-modal-body > p { text-align: center; font-size: 0.95rem; }
+.submit-modal-actions {
+  display: flex; gap: 0.85rem; justify-content: center;
+  margin-top: 1.75rem; flex-wrap: wrap;
+}
+.submit-unanswered-list {
+  background: #FEF9C3; border: 1px solid #FDE68A;
+  border-radius: 10px; padding: 0.75rem 1rem;
+  font-size: 0.85rem; color: #78350F;
+  margin: 0.75rem 0 0; text-align: center;
+}
+
+/* ── No-questions error state ────────────────────── */
+.no-questions-error .error-icon { font-size: 3.5rem; margin-bottom: 1rem; display: block; }
+.no-questions-error h2 { color: var(--text-main); }
+
+/* ── Question counter chip (override base h3 color) */
+#questionCounter { color: var(--primary); }
+
+/* ── Section label above form fields ─────────────── */
+.field-section-label {
+  font-size: 0.72rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.field-section-label::after {
+  content: ''; flex: 1; height: 1px; background: #E2E8F0;
+}

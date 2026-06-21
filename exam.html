@@ -35,8 +35,8 @@
         .welcome-rules {
             background: var(--primary-light);
             border-radius: var(--radius-sm);
-            padding: 1.5rem;
-            margin: 1.5rem 0;
+            padding: 1.35rem 1.5rem;
+            margin: 1.25rem 0 0;
             border: 1px solid rgba(26,110,232,0.15);
             text-align: left;
         }
@@ -44,8 +44,8 @@
             display: flex;
             align-items: center;
             gap: 0.9rem;
-            margin-bottom: 0.85rem;
-            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.94rem;
             color: var(--text-main);
             opacity: 0;
             transform: translateX(-8px);
@@ -55,25 +55,21 @@
         .rule-item:nth-child(2) { animation-delay: 0.15s; }
         .rule-item:nth-child(3) { animation-delay: 0.25s; }
         .rule-item:nth-child(4) { animation-delay: 0.35s; }
-        .rule-item:nth-child(5) { animation-delay: 0.45s; }
         @keyframes ruleIn { to { opacity: 1; transform: translateX(0); } }
         .rule-item:last-child { margin-bottom: 0; }
         .rule-icon {
             flex-shrink: 0;
-            width: 36px; height: 36px;
+            width: 34px; height: 34px;
             border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.05rem;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
             background: white;
             box-shadow: var(--shadow-sm);
         }
-        .rule-item:nth-child(1) .rule-icon { background: rgba(231,76,60,0.12); }
-        .rule-item:nth-child(2) .rule-icon { background: rgba(243,156,18,0.14); }
-        .rule-item:nth-child(3) .rule-icon { background: rgba(39,174,96,0.14); }
-        .rule-item:nth-child(4) .rule-icon { background: rgba(22,160,133,0.14); }
-        .rule-item:nth-child(5) .rule-icon { background: rgba(26,110,232,0.14); }
+        .rule-item:nth-child(1) .rule-icon { background: rgba(26,110,232,0.1); }
+        .rule-item:nth-child(2) .rule-icon { background: rgba(39,174,96,0.12); }
+        .rule-item:nth-child(3) .rule-icon { background: rgba(16,160,133,0.12); }
+        .rule-item:nth-child(4) .rule-icon { background: rgba(239,68,68,0.1); }
 
         .finished-icon { font-size: 4rem; margin-bottom: 1rem; }
         .finished-details {
@@ -90,21 +86,37 @@
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-color);
             z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
             gap: 1.5rem;
         }
         .loading-screen p { color: var(--text-muted); font-size: 1rem; margin: 0; }
 
-        /* Timer always on top right — explicitly forced visible */
         #timerDisplay {
             display: flex !important;
             align-items: center;
             justify-content: center;
         }
         #timerDisplay.hidden-timer { display: none !important; }
+
+        /* Header right cluster: monitoring + timer */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        /* Question area separator */
+        .field-sep {
+            height: 1px;
+            background: #F1F5F9;
+            margin: 1.5rem 0 1.4rem;
+        }
+
+        /* Start button full-width block */
+        .start-btn-wrap {
+            margin-top: 1.75rem;
+        }
     </style>
 </head>
 <body>
@@ -116,30 +128,49 @@
 
     <div class="container hidden" id="mainContainer" style="max-width: 860px;">
 
-        <!-- Header siempre visible con nombre y cronómetro -->
+        <!-- Header siempre visible con nombre, badge de monitoreo y cronómetro -->
         <header class="no-print">
             <div>
                 <h2 id="userNameDisplay">—</h2>
                 <p id="userCategoryDisplay" style="margin:0;">Cargando…</p>
             </div>
-            <!-- El cronómetro usa clase .timer del CSS; se oculta SOLO al finalizar -->
-            <div class="timer-wrap">
-                <span class="timer-label">Tiempo restante</span>
-                <div id="timerDisplay" class="timer">—:——</div>
+            <div class="header-right">
+                <div class="monitoring-live" id="monitoringBadge" style="display:none;">
+                    <span class="live-dot"></span>
+                    Monitoreado
+                </div>
+                <div class="timer-wrap">
+                    <span class="timer-label">Tiempo restante</span>
+                    <div id="timerDisplay" class="timer">—:——</div>
+                </div>
             </div>
         </header>
 
         <div id="warningBanner" class="warning-banner hidden">
-            ⚠️ Atención: saliste de esta ventana. El sistema lo registró.
+            ⚠️ Saliste de la ventana — el sistema lo registró y notificará al evaluador.
         </div>
 
-        <!-- ── Pantalla de instrucciones ────────────── -->
+        <!-- ── Pantalla de instrucciones ───────────────────── -->
         <div id="welcomeScreen" class="glass-card text-center hidden">
             <div class="brand-bar"></div>
             <div class="hero-badge">📐</div>
             <h1>Active Maths Championship</h1>
-            <p style="font-size: 1.05rem;">Leé las instrucciones antes de comenzar.</p>
+            <p style="font-size: 1rem; margin-bottom: 1.25rem;">Leé las instrucciones antes de comenzar.</p>
 
+            <!-- Tarjeta de identidad del estudiante -->
+            <div class="student-identity-card" id="studentCard">
+                <div class="student-avatar">👤</div>
+                <div>
+                    <div class="student-name" id="welcomeName">—</div>
+                    <div class="student-meta">
+                        <span id="welcomeCategory">—</span>
+                        <span class="sep">·</span>
+                        <span id="welcomeSchool">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reglas -->
             <div class="welcome-rules">
                 <div class="rule-item">
                     <span class="rule-icon">⏱</span>
@@ -147,28 +178,43 @@
                 </div>
                 <div class="rule-item">
                     <span class="rule-icon">✍️</span>
-                    <span>Escribí la <strong>respuesta final</strong> en el campo de respuesta y explicá el proceso en la justificación.</span>
+                    <span>Escribí la <strong>respuesta final</strong> y explicá el proceso en la justificación.</span>
                 </div>
                 <div class="rule-item">
                     <span class="rule-icon">💾</span>
-                    <span>Las respuestas se <strong>guardan automáticamente</strong> cada vez que avanzás o salís de un campo.</span>
+                    <span>Las respuestas se <strong>guardan automáticamente</strong> al avanzar o salir de un campo.</span>
                 </div>
                 <div class="rule-item">
                     <span class="rule-icon">🔒</span>
-                    <span>Una vez que enviás la evaluación, <strong>no podés modificarla</strong>.</span>
-                </div>
-                <div class="rule-item">
-                    <span class="rule-icon">🚫</span>
-                    <span>No cambies de pestaña ni salgas de la ventana durante la evaluación.</span>
+                    <span>Una vez enviada la evaluación, <strong>no podés modificarla</strong>.</span>
                 </div>
             </div>
 
-            <button id="startBtn" class="btn btn-primary mt-4" style="font-size: 1.05rem; padding: 1rem 3rem;">
-                Comenzar Evaluación
-            </button>
+            <!-- Aviso anti-trampa (prominente) -->
+            <div class="anticheat-notice">
+                <div class="anticheat-notice-icon">🔍</div>
+                <div class="anticheat-notice-body">
+                    <strong>Sistema de monitoreo activo</strong>
+                    <p>Esta evaluación registra si cambiás de pestaña o salís de la pantalla completa. Cada salida queda registrada con hora exacta y el evaluador será notificado. No intentes hacerlo.</p>
+                </div>
+            </div>
+
+            <div class="start-btn-wrap">
+                <button id="startBtn" class="btn btn-primary w-full" style="font-size: 1.05rem; padding: 1rem 2rem;">
+                    Comenzar Evaluación →
+                </button>
+            </div>
         </div>
 
-        <!-- ── Pantalla de examen ────────────────────── -->
+        <!-- ── Pantalla sin ejercicios (error de configuración) ── -->
+        <div id="noQuestionsScreen" class="glass-card text-center hidden no-questions-error">
+            <span class="error-icon">⚠️</span>
+            <h2>Sin ejercicios disponibles</h2>
+            <p>No encontramos ejercicios para tu categoría. Contactá a tu docente antes de empezar.</p>
+            <button id="backToLoginBtn" class="btn btn-secondary mt-4">Volver al inicio</button>
+        </div>
+
+        <!-- ── Pantalla de examen ─────────────────────────────── -->
         <div id="examScreen" class="hidden">
             <div id="progressDots" class="exam-progress"></div>
 
@@ -180,13 +226,15 @@
                     <img id="questionImage" class="question-image hidden" alt="Figura del ejercicio">
                 </div>
 
+                <div class="field-sep"></div>
+
                 <div class="form-group">
-                    <label for="answerInput">Respuesta Final</label>
+                    <div class="field-section-label">Respuesta Final</div>
                     <input type="text" id="answerInput" placeholder="Escribí solo el resultado (ej: 45 o A=1, B=9)">
                 </div>
 
                 <div class="form-group">
-                    <label for="justificationInput">Proceso y Justificación</label>
+                    <div class="field-section-label">Proceso y Justificación</div>
                     <textarea id="justificationInput" rows="7"
                         placeholder="Explicá detalladamente cómo llegaste a la respuesta. Mostrá cada paso del razonamiento…"></textarea>
                 </div>
@@ -195,12 +243,12 @@
                     <button id="prevBtn" class="btn btn-secondary">← Anterior</button>
                     <div class="saving-indicator" id="savingIndicator"></div>
                     <button id="nextBtn" class="btn btn-primary">Siguiente →</button>
-                    <button id="finishBtn" class="btn btn-danger hidden">Enviar Evaluación</button>
+                    <button id="finishBtn" class="btn btn-danger hidden">📬 Enviar Evaluación</button>
                 </div>
             </div>
         </div>
 
-        <!-- ── Pantalla de completado ────────────────── -->
+        <!-- ── Pantalla de completado ─────────────────────────── -->
         <div id="finishedScreen" class="glass-card hidden text-center">
             <div class="finished-icon">🏆</div>
             <h1>¡Evaluación Completada!</h1>
@@ -213,22 +261,39 @@
 
     </div>
 
+    <!-- ── Modal de confirmación de envío ───────────────────── -->
+    <div id="submitModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="submit-modal-body">
+                <span class="submit-modal-icon" id="submitModalIcon">📬</span>
+                <h2>¿Enviás la evaluación?</h2>
+                <p id="submitModalMsg">Esta acción no se puede deshacer.</p>
+                <div id="submitUnanswered" class="submit-unanswered-list hidden"></div>
+                <div class="submit-modal-actions">
+                    <button id="submitCancelBtn" class="btn btn-secondary">Volver a revisar</button>
+                    <button id="submitConfirmBtn" class="btn btn-danger">Enviar definitivamente</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
-        import { auth, onAuthStateChanged, signOut, DB, CATEGORIES } from './js/data.js';
+        import { auth, onAuthStateChanged, signOut, DB, CATEGORIES, LEGACY_CATEGORY_MAP } from './js/data.js';
 
         let currentUserData = null;
         let currentUser     = null;
         let questions       = [];
         let currentQuestionIndex = 0;
         let answers         = [];
-        let timeLeft        = 80 * 60;   // default; overridden by Firestore config
+        let timeLeft        = 80 * 60;
         let timerInterval   = null;
-        let violationLog    = [];        // { type: 'visibility'|'fullscreen', at: ISOString }[]
+        let violationLog    = [];
 
-        // ── DOM refs ─────────────────────────────────
+        // ── DOM refs ──────────────────────────────────────
         const loadingOverlay     = document.getElementById('loadingOverlay');
         const mainContainer      = document.getElementById('mainContainer');
         const welcomeScreen      = document.getElementById('welcomeScreen');
+        const noQuestionsScreen  = document.getElementById('noQuestionsScreen');
         const examScreen         = document.getElementById('examScreen');
         const questionText       = document.getElementById('questionText');
         const answerInput        = document.getElementById('answerInput');
@@ -240,8 +305,10 @@
         const savingIndicator    = document.getElementById('savingIndicator');
         const progressDots       = document.getElementById('progressDots');
         const timerEl            = document.getElementById('timerDisplay');
+        const monitoringBadge    = document.getElementById('monitoringBadge');
+        const submitModal        = document.getElementById('submitModal');
 
-        // ── Auth ──────────────────────────────────────
+        // ── Auth ───────────────────────────────────────────
         onAuthStateChanged(auth, async (user) => {
             if (!user) { window.location.href = 'index.html'; return; }
 
@@ -249,10 +316,22 @@
             currentUserData = await DB.getUser(user.uid);
             if (!currentUserData) { window.location.href = 'index.html'; return; }
 
+            // Normalizar categorías antiguas (ej: "basico_a" → "basico")
+            currentUserData.category = LEGACY_CATEGORY_MAP[currentUserData.category] || currentUserData.category;
+
+            const catObj = CATEGORIES.find(c => c.id === currentUserData.category);
+            const catName = catObj?.name || currentUserData.category;
+
             document.getElementById('userNameDisplay').textContent =
                 `${currentUserData.firstName} ${currentUserData.lastName}`;
             document.getElementById('userCategoryDisplay').textContent =
-                `${CATEGORIES.find(c => c.id === currentUserData.category)?.name || currentUserData.category} · ${currentUserData.school}`;
+                `${catName} · ${currentUserData.school}`;
+
+            // Datos en tarjeta de bienvenida
+            document.getElementById('welcomeName').textContent =
+                `${currentUserData.firstName} ${currentUserData.lastName}`;
+            document.getElementById('welcomeCategory').textContent = catName;
+            document.getElementById('welcomeSchool').textContent = currentUserData.school;
 
             // Cargar preguntas y configuración en paralelo
             const [loadedQs, config] = await Promise.all([
@@ -261,41 +340,37 @@
             ]);
             questions = loadedQs;
 
-            // Establecer duración desde configuración
             const configuredMinutes = config.examDurationMinutes || 80;
             timeLeft = configuredMinutes * 60;
-
-            // Mostrar duración en pantalla de instrucciones
             document.getElementById('durationLabel').textContent = `${configuredMinutes} minutos`;
-
-            // Mostrar timer con tiempo inicial ANTES de que empiece
             updateTimerDisplay();
 
-            // Mostrar contenedor principal (timer ya es visible aquí)
             loadingOverlay.classList.add('hidden');
             mainContainer.classList.remove('hidden');
 
-            // Revisar estado guardado
             const savedState = await DB.getExamState(user.uid);
 
             if (savedState?.finished) {
-                // Ya entregó — mostrar pantalla de completado, ocultar timer
                 document.getElementById('finishedScreen').classList.remove('hidden');
                 timerEl.classList.add('hidden-timer');
                 return;
             }
 
+            if (questions.length === 0) {
+                // Sin ejercicios: mostrar error claro en vez de crash silencioso
+                noQuestionsScreen.classList.remove('hidden');
+                timerEl.classList.add('hidden-timer');
+                return;
+            }
+
             if (savedState?.answers) {
-                // Retomar examen en progreso
                 answers              = savedState.answers;
                 currentQuestionIndex = savedState.currentQuestionIndex || 0;
-                // El tiempo guardado tiene prioridad sobre la configuración
                 timeLeft = (savedState.timeLeft != null) ? savedState.timeLeft : timeLeft;
                 violationLog = savedState.violationLog || [];
                 updateTimerDisplay();
                 startExam(true);
             } else {
-                // Primer ingreso — mostrar instrucciones
                 questions.forEach(q => answers.push({ qId: q.id, answer: '', justification: '' }));
                 welcomeScreen.classList.remove('hidden');
             }
@@ -303,8 +378,11 @@
 
         document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
         document.getElementById('startBtn').addEventListener('click', () => startExam(false));
+        document.getElementById('backToLoginBtn').addEventListener('click', () =>
+            signOut(auth).then(() => { window.location.href = 'index.html'; })
+        );
 
-        // ── Timer ─────────────────────────────────────
+        // ── Timer ──────────────────────────────────────────
         function updateTimerDisplay() {
             const remaining = Math.max(0, timeLeft);
             const m = Math.floor(remaining / 60);
@@ -318,14 +396,10 @@
         }
 
         function startTimer() {
-            // Asegurar que el timer sea visible
-            timerEl.classList.remove('hidden');
-            timerEl.classList.remove('hidden-timer');
-
+            timerEl.classList.remove('hidden', 'hidden-timer');
             timerInterval = setInterval(() => {
                 timeLeft--;
                 updateTimerDisplay();
-                // Auto-guardar cada 30 segundos
                 if (timeLeft % 30 === 0 && timeLeft > 0) saveState();
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
@@ -334,10 +408,11 @@
             }, 1000);
         }
 
-        // ── Exam start ────────────────────────────────
+        // ── Exam start ─────────────────────────────────────
         function startExam(isResume = false) {
             welcomeScreen.classList.add('hidden');
             examScreen.classList.remove('hidden');
+            monitoringBadge.style.display = 'flex';
             if (!isResume) {
                 try { document.documentElement.requestFullscreen(); } catch (_) {}
             }
@@ -345,7 +420,7 @@
             loadQuestion(currentQuestionIndex);
         }
 
-        // ── State persistence ─────────────────────────
+        // ── State persistence ──────────────────────────────
         async function saveState() {
             showSaving(true);
             if (answers[currentQuestionIndex]) {
@@ -359,11 +434,10 @@
             showSaving(false);
         }
 
-        // ── Anti-trampa: registrar (sin bloquear) cada salida de ventana/pantalla completa
+        // ── Anti-trampa ────────────────────────────────────
         function logViolation(type) {
             violationLog.push({ type, at: new Date().toISOString() });
             document.getElementById('warningBanner').classList.remove('hidden');
-            // Persistencia inmediata: no esperar al autoguardado de 30s
             DB.saveExamState(currentUser.uid, {
                 answers, currentQuestionIndex, timeLeft, violationLog,
                 updatedAt: new Date().toISOString()
@@ -379,13 +453,14 @@
             }
         }
 
-        // ── Question rendering ────────────────────────
+        // ── Question rendering ─────────────────────────────
         function loadQuestion(index) {
+            if (!questions || questions.length === 0) return;
+
             const q = questions[index];
             document.getElementById('questionCounter').textContent =
                 `Problema ${index + 1} de ${questions.length}`;
 
-            // Reinicia la animación de entrada en cada cambio de pregunta
             const questionContainer = document.querySelector('.question-container');
             questionContainer.classList.remove('question-enter');
             void questionContainer.offsetWidth;
@@ -436,30 +511,52 @@
             });
         }
 
-        // ── Navigation ────────────────────────────────
+        // ── Navigation ─────────────────────────────────────
         prevBtn.addEventListener('click', async () => {
             await saveState(); currentQuestionIndex--; loadQuestion(currentQuestionIndex);
         });
-
         nextBtn.addEventListener('click', async () => {
             await saveState(); currentQuestionIndex++; loadQuestion(currentQuestionIndex);
         });
-
         answerInput.addEventListener('blur', saveState);
         justificationInput.addEventListener('blur', saveState);
 
+        // ── Submit: modal en vez de confirm() ─────────────
         finishBtn.addEventListener('click', async () => {
+            await saveState();
             const unanswered = answers.filter(a => !a.answer?.trim()).length;
-            const msg = unanswered > 0
-                ? `Tenés ${unanswered} pregunta/s sin responder. ¿Querés enviar igual? Esta acción no se puede deshacer.`
-                : '¿Confirmás el envío de tu evaluación? Esta acción no se puede deshacer.';
-            if (confirm(msg)) await submitExam();
+            const unansweredEl = document.getElementById('submitUnanswered');
+            if (unanswered > 0) {
+                document.getElementById('submitModalIcon').textContent = '⚠️';
+                document.getElementById('submitModalMsg').textContent =
+                    'Todavía podés volver y completarlas.';
+                unansweredEl.textContent =
+                    `Tenés ${unanswered} pregunta${unanswered > 1 ? 's' : ''} sin responder.`;
+                unansweredEl.classList.remove('hidden');
+            } else {
+                document.getElementById('submitModalIcon').textContent = '📬';
+                document.getElementById('submitModalMsg').textContent =
+                    'Esta acción no se puede deshacer.';
+                unansweredEl.classList.add('hidden');
+            }
+            submitModal.classList.remove('hidden');
         });
 
-        // ── Submission ────────────────────────────────
-        // El puntaje NO se calcula aquí: el enunciado que recibe el estudiante
-        // nunca incluye la respuesta correcta, así que la corrección automática
-        // la hace el panel admin (que sí tiene la clave de respuestas).
+        document.getElementById('submitCancelBtn').addEventListener('click', () => {
+            submitModal.classList.add('hidden');
+        });
+
+        document.getElementById('submitConfirmBtn').addEventListener('click', async () => {
+            submitModal.classList.add('hidden');
+            await submitExam();
+        });
+
+        // Cerrar modal al clickar fondo
+        submitModal.addEventListener('click', (e) => {
+            if (e.target === submitModal) submitModal.classList.add('hidden');
+        });
+
+        // ── Submission ─────────────────────────────────────
         async function submitExam() {
             finishBtn.textContent = 'Enviando…';
             finishBtn.disabled    = true;
@@ -467,7 +564,7 @@
             await saveState();
 
             await DB.saveSubmission(currentUser.uid, {
-                user:       currentUserData,
+                user:        currentUserData,
                 answers,
                 violationLog,
                 submittedAt: new Date().toISOString()
@@ -476,16 +573,16 @@
             examScreen.classList.add('hidden');
             document.getElementById('finishedScreen').classList.remove('hidden');
             timerEl.classList.add('hidden-timer');
+            monitoringBadge.style.display = 'none';
         }
 
-        // ── Detección de cambio de ventana/pestaña y salida de pantalla completa ──
+        // ── Detección de cambio de ventana/pestaña ─────────
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden' &&
                 !examScreen.classList.contains('hidden')) {
                 logViolation('visibility');
             }
         });
-
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement &&
                 !examScreen.classList.contains('hidden')) {
