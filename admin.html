@@ -812,28 +812,52 @@ function viewDetails(sub) {
         </div>`;
     }
 
-    (sub.answers || []).forEach((ans, i) => {
-        const q       = qList.find(qu => qu.id === ans.qId);
-        const isOk    = q && ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
-        html += `
-            <div class="answer-block">
-                <h4>Ejercicio ${i + 1}</h4>
-                <div class="q-text">${q ? q.text : '(Ejercicio no encontrado)'}</div>
-                ${q?.imageUrl ? `<img src="${esc(q.imageUrl)}" alt="Figura del ejercicio" class="exercise-image-thumb" style="margin-bottom:1rem;">` : ''}
-                <div class="answer-row">
-                    <span style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">Respuesta:</span>
-                    <span style="font-weight:700; font-size:1rem; color:${isOk ? 'var(--success)' : 'var(--accent)'};">
-                        ${ans.answer || '(sin respuesta)'}
-                        ${isOk ? ' ✓' : ' ✗'}
-                    </span>
-                    <span style="font-size:0.8rem; color:var(--text-muted);">
-                        Correcta: <strong>${q ? esc(q.correctAnswer) : '?'}</strong>
-                    </span>
-                </div>
-                <div style="font-size:0.82rem; color:var(--text-muted); font-weight:600; margin-bottom:0.4rem;">Justificación:</div>
-                <div class="justification-box">${ans.justification ? esc(ans.justification) : '<em style="color:var(--text-muted);">(sin justificación)</em>'}</div>
-            </div>`;
-    });
+    // Iterar sobre el banco de preguntas (no sobre sub.answers) para mostrar
+    // siempre todos los ejercicios aunque el alumno no haya respondido alguno.
+    if (qList.length === 0) {
+        html += `<div class="answer-block" style="text-align:center; padding:2rem;">
+            <p style="color:var(--text-muted);">No hay ejercicios cargados para esta categoría.</p>
+        </div>`;
+    } else {
+        qList.forEach((q, i) => {
+            // Buscar la respuesta del alumno por qId; si no existe, mostrar vacío
+            const ans  = (sub.answers || []).find(a => a.qId === q.id) || { answer: '', justification: '' };
+            const hasAnswer = ans.answer?.trim().length > 0;
+            const isOk = hasAnswer && ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
+
+            const answerColor  = !hasAnswer ? 'var(--text-muted)' : (isOk ? 'var(--success)' : 'var(--accent)');
+            const answerText   = hasAnswer ? esc(ans.answer) : '(sin respuesta)';
+            const answerSuffix = hasAnswer ? (isOk ? ' ✓' : ' ✗') : '';
+
+            html += `
+                <div class="answer-block">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <h4 style="margin:0;">Ejercicio ${i + 1}</h4>
+                        <span class="badge ${isOk ? 'badge-correct' : (hasAnswer ? 'badge-incorrect' : 'badge-partial')}">
+                            ${isOk ? '✓ Correcta' : (hasAnswer ? '✗ Incorrecta' : '— Sin respuesta')}
+                        </span>
+                    </div>
+                    <div class="q-text">${q.text}</div>
+                    ${q.imageUrl ? `<img src="${esc(q.imageUrl)}" alt="Figura del ejercicio" class="exercise-image-thumb" style="margin:0.75rem 0;">` : ''}
+
+                    <div style="display:flex; gap:1.5rem; flex-wrap:wrap; align-items:baseline; margin:1rem 0 0.6rem;">
+                        <div>
+                            <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); margin-bottom:0.25rem;">Respuesta del estudiante</div>
+                            <span style="font-weight:700; font-size:1.05rem; color:${answerColor};">${answerText}${answerSuffix}</span>
+                        </div>
+                        <div>
+                            <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); margin-bottom:0.25rem;">Respuesta correcta</div>
+                            <span style="font-weight:600; font-size:0.95rem; color:var(--success);">${esc(q.correctAnswer)}</span>
+                        </div>
+                    </div>
+
+                    <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); margin:1rem 0 0.4rem;">Justificación del estudiante</div>
+                    <div class="justification-box" style="border-left:3px solid ${hasAnswer ? 'var(--primary)' : '#E2E8F0'};">
+                        ${ans.justification ? esc(ans.justification) : '<em style="color:var(--text-muted);">(sin justificación)</em>'}
+                    </div>
+                </div>`;
+        });
+    }
 
     document.getElementById('modalContent').innerHTML = html;
 
