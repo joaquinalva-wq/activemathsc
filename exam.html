@@ -421,12 +421,17 @@
         }
 
         // ── State persistence ──────────────────────────────
-        async function saveState() {
-            showSaving(true);
+        // Captura los campos actuales en memoria (sync, sin Firestore)
+        function collectCurrentAnswers() {
             if (answers[currentQuestionIndex]) {
                 answers[currentQuestionIndex].answer        = answerInput.value;
                 answers[currentQuestionIndex].justification = justificationInput.value;
             }
+        }
+
+        async function saveState() {
+            collectCurrentAnswers();
+            showSaving(true);
             await DB.saveExamState(currentUser.uid, {
                 answers, currentQuestionIndex, timeLeft, violationLog,
                 updatedAt: new Date().toISOString()
@@ -436,6 +441,7 @@
 
         // ── Anti-trampa ────────────────────────────────────
         function logViolation(type) {
+            collectCurrentAnswers();
             violationLog.push({ type, at: new Date().toISOString() });
             document.getElementById('warningBanner').classList.remove('hidden');
             DB.saveExamState(currentUser.uid, {
@@ -500,11 +506,12 @@
                 dot.textContent = i + 1;
                 if (i === currentQuestionIndex)           dot.classList.add('current');
                 else if (answers[i]?.answer?.trim())      dot.classList.add('answered');
-                dot.addEventListener('click', async () => {
+                dot.addEventListener('click', () => {
                     if (i !== currentQuestionIndex) {
-                        await saveState();
+                        collectCurrentAnswers();
                         currentQuestionIndex = i;
                         loadQuestion(currentQuestionIndex);
+                        saveState();
                     }
                 });
                 progressDots.appendChild(dot);
@@ -512,14 +519,15 @@
         }
 
         // ── Navigation ─────────────────────────────────────
-        prevBtn.addEventListener('click', async () => {
-            await saveState(); currentQuestionIndex--; loadQuestion(currentQuestionIndex);
+        prevBtn.addEventListener('click', () => {
+            collectCurrentAnswers(); currentQuestionIndex--; loadQuestion(currentQuestionIndex); saveState();
         });
-        nextBtn.addEventListener('click', async () => {
-            await saveState(); currentQuestionIndex++; loadQuestion(currentQuestionIndex);
+        nextBtn.addEventListener('click', () => {
+            collectCurrentAnswers(); currentQuestionIndex++; loadQuestion(currentQuestionIndex); saveState();
         });
-        answerInput.addEventListener('blur', saveState);
-        justificationInput.addEventListener('blur', saveState);
+        // blur solo guarda en memoria local, no espera Firestore
+        answerInput.addEventListener('blur', collectCurrentAnswers);
+        justificationInput.addEventListener('blur', collectCurrentAnswers);
 
         // ── Submit: modal en vez de confirm() ─────────────
         finishBtn.addEventListener('click', async () => {
