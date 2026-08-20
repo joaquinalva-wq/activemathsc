@@ -185,6 +185,18 @@
         </div>
     </div>
 
+    <div class="no-print" style="max-width:1200px; margin:1rem auto 0; padding:0 1rem;">
+        <div class="glass-card" style="padding:1rem 1.15rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+            <div style="flex:1; min-width:260px;">
+                <label for="competitionSelector" style="display:block; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:800; margin-bottom:0.35rem;">Competencia / instancia</label>
+                <select id="competitionSelector" style="margin:0; font-weight:700;"></select>
+            </div>
+            <span id="competitionStatusBadge" class="badge badge-partial">Borrador</span>
+            <button id="setActiveCompetitionBtn" class="btn btn-secondary btn-sm">Usar como instancia pública</button>
+            <span id="activeCompetitionLabel" style="width:100%; font-size:0.8rem; color:var(--text-muted);"></span>
+        </div>
+    </div>
+
     <!-- Tab navigation -->
     <div class="tab-nav no-print">
         <button class="tab-btn active" data-tab="results">
@@ -408,7 +420,17 @@
         <div class="tab-pane hidden" id="tab-config">
             <div class="glass-card" style="max-width: 520px;">
                 <div class="section-header">
-                    <h3>Configuración del Examen</h3>
+                    <h3 id="configCompetitionTitle">Configuración del Examen</h3>
+                </div>
+
+                <div class="form-group">
+                    <label for="configCompetitionStatus">Estado de la instancia</label>
+                    <select id="configCompetitionStatus">
+                        <option value="draft">Borrador · solo preparación</option>
+                        <option value="open">Abierta · estudiantes pueden rendir</option>
+                        <option value="closed">Cerrada · conserva resultados</option>
+                    </select>
+                    <p id="configEligibility" style="font-size:0.82rem; margin-top:0.6rem; margin-bottom:0; color:var(--text-muted);"></p>
                 </div>
 
                 <div class="form-group">
@@ -460,7 +482,8 @@
 <script type="module">
 import {
     auth, provider, signInWithPopup, onAuthStateChanged, signOut,
-    DB, SCHOOLS, CATEGORIES, CATEGORY_BASE_MAP, LEGACY_CATEGORY_MAP
+    DB, SCHOOLS, CATEGORIES, CATEGORY_BASE_MAP, LEGACY_CATEGORY_MAP,
+    getCompetitionById
 } from './js/data.js';
 
 // ══ State ════════════════════════════════════════
@@ -468,6 +491,8 @@ let allSubmissions   = [];
 let loadedQuestions  = {};  // { basico: [...], intermedio: [...], avanzado: [...], pitagoras: [...] }
 let currentExCat     = 'basico';
 let editingIdx       = -1;  // index of exercise being edited
+let competitionRegistry = null;
+let currentCompetitionId = null;
 
 const ALLOWED_EMAILS = [
     'joaquin.alva@activelearning.com.ar',
@@ -516,27 +541,71 @@ onAuthStateChanged(auth, async (user) => {
     mainAdmin.classList.remove('hidden');
     document.getElementById('adminEmail').textContent = user.email;
 
+    competitionRegistry = await DB.getCompetitionRegistry();
+    currentCompetitionId = competitionRegistry.activeCompetitionId;
+    initCompetitionSelector();
     await loadData();
 });
+
+function currentCompetition() {
+    return getCompetitionById(competitionRegistry, currentCompetitionId);
+}
+
+function initCompetitionSelector() {
+    const selector = document.getElementById('competitionSelector');
+    selector.innerHTML = '';
+    competitionRegistry.competitions.forEach(competition => {
+        selector.add(new Option(competition.name, competition.id));
+    });
+    selector.value = currentCompetitionId;
+    selector.addEventListener('change', async () => {
+        currentCompetitionId = selector.value;
+        editingIdx = -1;
+        await loadData();
+    });
+    document.getElementById('setActiveCompetitionBtn').addEventListener('click', async () => {
+        competitionRegistry.activeCompetitionId = currentCompetitionId;
+        competitionRegistry = await DB.saveCompetitionRegistry(competitionRegistry);
+        renderCompetitionContext();
+        showToast(`${currentCompetition().name} es ahora la instancia pública.`, 'success');
+    });
+    renderCompetitionContext();
+}
+
+function renderCompetitionContext() {
+    const competition = currentCompetition();
+    const statusNames = { draft: 'Borrador', open: 'Abierta', closed: 'Cerrada' };
+    const badge = document.getElementById('competitionStatusBadge');
+    badge.textContent = statusNames[competition.status] || competition.status;
+    badge.className = `badge ${competition.status === 'open' ? 'badge-correct' : (competition.status === 'closed' ? 'badge-incorrect' : 'badge-partial')}`;
+    const isActive = competitionRegistry.activeCompetitionId === competition.id;
+    document.getElementById('setActiveCompetitionBtn').disabled = isActive;
+    document.getElementById('activeCompetitionLabel').textContent = isActive
+        ? `✓ Esta es la instancia que ven los estudiantes. ${competition.status !== 'open' ? 'Mientras no esté abierta, no podrán comenzar.' : ''}`
+        : `Instancia pública actual: ${getCompetitionById(competitionRegistry, competitionRegistry.activeCompetitionId)?.name || '—'}`;
+    document.getElementById('configCompetitionTitle').textContent = `Configuración · ${competition.name}`;
+    document.getElementById('configCompetitionStatus').value = competition.status;
+    document.getElementById('configEligibility').textContent = competition.restrictedToClassified
+        ? `Acceso limitado automáticamente a los clasificados de ${getCompetitionById(competitionRegistry, competition.qualifierCompetitionId)?.name || 'la toma anterior'}.`
+        : 'Acceso general: cualquier estudiante autenticado puede registrarse para esta instancia.';
+}
 
 // ══ Data loading ════════════════════════════════
 async function loadData() {
     loadingMsg.classList.remove('hidden');
     try {
-        // Trae preguntas + respuesta correcta (solo el admin puede leer la clave) y config en paralelo
-        const [, config] = await Promise.all([
-            (async () => {
-                for (const cat of BASE_CATS) {
-                    loadedQuestions[cat] = await DB.getQuestionsFull(cat);
-                }
-            })(),
-            DB.getConfig()
+        const [questionEntries, config, submissions] = await Promise.all([
+            Promise.all(BASE_CATS.map(async cat => [cat, await DB.getQuestionsFull(cat, currentCompetitionId)])),
+            DB.getConfig(currentCompetitionId),
+            DB.getSubmissions(currentCompetitionId)
         ]);
+        loadedQuestions = Object.fromEntries(questionEntries);
 
         // Pre-fill config tab
         document.getElementById('configDuration').value = config.examDurationMinutes || 80;
+        renderCompetitionContext();
 
-        allSubmissions = await DB.getSubmissions();
+        allSubmissions = submissions;
         allSubmissions.forEach(gradeSubmission);
         allSubmissions.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
@@ -554,14 +623,24 @@ async function loadData() {
     }
 }
 
+function getQuestionsForSubmission(sub) {
+    const normCat = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
+    const base = CATEGORY_BASE_MAP[normCat] || normCat;
+    const current = loadedQuestions[base] || [];
+    if (!Array.isArray(sub.questionsSnapshot) || sub.questionsSnapshot.length === 0) return current;
+    return sub.questionsSnapshot.map(snapshotQuestion => {
+        const answerKey = current.find(q => q.id === snapshotQuestion.id)?.correctAnswer || '';
+        return { ...snapshotQuestion, correctAnswer: answerKey };
+    });
+}
+
 // El estudiante nunca recibe la respuesta correcta (ver js/data.js DB.getQuestions),
 // así que el puntaje se calcula acá, con la clave que solo el admin puede leer.
 function gradeSubmission(sub) {
     const normCat = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
     // Normalize legacy category in-place so display is consistent everywhere
     if (sub.user && sub.user.category !== normCat) sub.user.category = normCat;
-    const base = CATEGORY_BASE_MAP[normCat] || normCat;
-    const qs   = loadedQuestions[base] || [];
+    const qs = getQuestionsForSubmission(sub);
     let correct = 0;
     (sub.answers || []).forEach(ans => {
         const q = qs.find(qu => qu.id === ans.qId);
@@ -769,8 +848,8 @@ function renderResults() {
             const name = `${sub.user.firstName || ''} ${sub.user.lastName || ''}`.trim();
             if (!confirm(`¿Eliminar la entrega de ${name}?\n\nEsta acción no se puede deshacer y también borrará el estado del examen, permitiendo que el estudiante vuelva a rendir.`)) return;
             try {
-                await DB.deleteSubmission(sub.user.uid);
-                allSubmissions = allSubmissions.filter(s => s.user.uid !== sub.user.uid);
+                await DB.deleteSubmission(sub._docId || sub.user.uid, currentCompetitionId);
+                allSubmissions = allSubmissions.filter(s => (s._docId || s.user.uid) !== (sub._docId || sub.user.uid));
                 updateCounts();
                 renderResults();
                 renderStats();
@@ -785,9 +864,7 @@ function renderResults() {
 
 // ── Detail modal ──────────────────────────────
 function viewDetails(sub) {
-    const normCat = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
-    const base    = CATEGORY_BASE_MAP[normCat] || normCat;
-    const qList   = loadedQuestions[base] || [];
+    const qList = getQuestionsForSubmission(sub);
     document.getElementById('modalTitle').textContent =
         `${sub.user.lastName || ''}, ${sub.user.firstName || ''}`;
     document.getElementById('modalSubtitle').textContent =
@@ -933,9 +1010,7 @@ function renderExerciseStats(subs, catFilter) {
     // Collect all exercise IDs that appear in these submissions
     const exMap = {};
     subs.forEach(sub => {
-        const nc   = LEGACY_CATEGORY_MAP[sub.user?.category] || sub.user?.category;
-        const base = CATEGORY_BASE_MAP[nc] || nc;
-        const qs   = loadedQuestions[base] || [];
+        const qs = getQuestionsForSubmission(sub);
         (sub.answers || []).forEach((ans, i) => {
             const q = qs.find(q => q.id === ans.qId);
             if (!exMap[ans.qId]) exMap[ans.qId] = { label: `Ej. ${i + 1}`, correct: 0, total: 0, catBase: base };
@@ -1142,7 +1217,7 @@ async function saveExercise(i) {
 
     try {
         loadedQuestions[currentExCat] = qs;
-        await DB.saveQuestionsFull(currentExCat, qs);
+        await DB.saveQuestionsFull(currentExCat, qs, currentCompetitionId);
         editingIdx = -1;
         renderExerciseList();
         showToast('Ejercicio guardado correctamente.', 'success');
@@ -1157,7 +1232,7 @@ async function deleteExercise(i) {
     qs.splice(i, 1);
     loadedQuestions[currentExCat] = qs;
     try {
-        await DB.saveQuestionsFull(currentExCat, qs);
+        await DB.saveQuestionsFull(currentExCat, qs, currentCompetitionId);
         renderExerciseList();
         showToast('Ejercicio eliminado.', 'info');
     } catch (e) {
@@ -1168,7 +1243,9 @@ async function deleteExercise(i) {
 document.getElementById('addExerciseBtn').addEventListener('click', () => {
     const qs   = loadedQuestions[currentExCat] || [];
     const prefix = { basico: 'b', intermedio: 'i', avanzado: 'a', pitagoras: 'p' }[currentExCat] || 'x';
-    qs.push({ id: `${prefix}${qs.length + 1}`, text: '', correctAnswer: '' });
+    let sequence = 1;
+    while (qs.some(q => q.id === `${prefix}${sequence}`)) sequence++;
+    qs.push({ id: `${prefix}${sequence}`, text: '', correctAnswer: '' });
     loadedQuestions[currentExCat] = qs;
     editingIdx = qs.length - 1;
     renderExerciseList();
@@ -1258,7 +1335,7 @@ async function toggleClassified(sub, value) {
         delete sub.classifiedAt;
     }
     try {
-        await DB.updateSubmission(sub.user.uid, { classified: value, classifiedAt: sub.classifiedAt || null });
+        await DB.setClassified(sub._docId || sub.user.uid, value, currentCompetitionId);
     } catch (e) {
         showToast('Error al guardar: ' + e.message, 'error');
     }
@@ -1285,6 +1362,10 @@ function printClassified(bySchool) {
         if (aCat !== bCat) return aCat - bCat;
         return b.autoGrade.score - a.autoGrade.score;
     });
+
+    const competition = currentCompetition();
+    const competitionYear = competition.year;
+    const competitionName = competition.name;
 
     if (!classified.length) {
         showToast('No hay clasificados con los filtros actuales.', 'error');
@@ -1377,7 +1458,7 @@ function printClassified(bySchool) {
                     <div class="doc-header">
                         <div>
                             <div class="comp-name">Active Maths Championship</div>
-                            <div class="comp-sub">Olimpiadas Matemáticas · Active Learning 2026</div>
+                            <div class="comp-sub">Olimpiadas Matemáticas · Active Learning ${competitionYear} · ${esc(competitionName)}</div>
                         </div>
                         <div class="doc-meta">
                             Generado el ${esc(now)}<br>
@@ -1386,7 +1467,7 @@ function printClassified(bySchool) {
                     </div>
                     <div class="school-header">
                         <h2>Colegio ${esc(sch)}</h2>
-                        <p>Los siguientes estudiantes clasificaron a la Fase Final del Active Maths Championship 2026.</p>
+                        <p>Los siguientes estudiantes fueron clasificados en ${esc(competitionName)}.</p>
                     </div>
                     <table>
                         <thead><tr>
@@ -1398,7 +1479,7 @@ function printClassified(bySchool) {
                         <tbody>${tableRows(list, false)}</tbody>
                     </table>
                     <div class="school-total">${list.length} clasificado${list.length !== 1 ? 's' : ''} en este colegio</div>
-                    <div class="footer-line">Active Maths Championship 2026 · Active Learning · Documento generado automáticamente</div>
+                    <div class="footer-line">Active Maths Championship ${competitionYear} · Active Learning · Documento generado automáticamente</div>
                 </div>
             </div>`;
         });
@@ -1410,7 +1491,7 @@ function printClassified(bySchool) {
             <div class="doc-header">
                 <div>
                     <div class="comp-name">Active Maths Championship</div>
-                    <div class="comp-sub">Olimpiadas Matemáticas · Active Learning 2026</div>
+                    <div class="comp-sub">Olimpiadas Matemáticas · Active Learning ${competitionYear} · ${esc(competitionName)}</div>
                 </div>
                 <div class="doc-meta">
                     Generado el ${esc(now)}<br>
@@ -1418,7 +1499,7 @@ function printClassified(bySchool) {
                     ${school ? esc(school) : 'Todos los colegios'}
                 </div>
             </div>
-            <div class="doc-title">Lista General de Clasificados — Fase Final</div>
+            <div class="doc-title">Lista General de Clasificados — ${esc(competitionName)}</div>
             <div class="summary-box">
                 <strong>${classified.length}</strong> estudiantes clasificados · <strong>${schools}</strong> colegios representados
                 ${cat ? ' · Categoría: <strong>' + esc(CATEGORIES.find(c => c.id === cat)?.name || cat) + '</strong>' : ''}
@@ -1433,12 +1514,12 @@ function printClassified(bySchool) {
                 </tr></thead>
                 <tbody>${tableRows(classified, true)}</tbody>
             </table>
-            <div class="footer-line">Active Maths Championship 2026 · Active Learning · Documento generado automáticamente</div>
+            <div class="footer-line">Active Maths Championship ${competitionYear} · Active Learning · Documento generado automáticamente</div>
         </div>`;
     }
 
     const html = `<!DOCTYPE html><html lang="es">
-    <head><meta charset="UTF-8"><title>${esc(title)} - Active Maths Championship 2026</title>
+    <head><meta charset="UTF-8"><title>${esc(title)} - Active Maths Championship ${competitionYear}</title>
     <style>${css}</style></head>
     <body>${body}</body></html>`;
 
@@ -1453,19 +1534,32 @@ function printClassified(bySchool) {
 // ══ CONFIGURACIÓN TAB ═══════════════════════════
 document.getElementById('saveConfigBtn').addEventListener('click', async () => {
     const minutes = parseInt(document.getElementById('configDuration').value, 10);
+    const newStatus = document.getElementById('configCompetitionStatus').value;
     if (!minutes || minutes < 10 || minutes > 300) {
         showToast('La duración debe estar entre 10 y 300 minutos.', 'error');
         return;
+    }
+    const emptyCategories = BASE_CATS.filter(cat => (loadedQuestions[cat] || []).length === 0);
+    if (newStatus === 'open' && emptyCategories.length > 0) {
+        const labels = emptyCategories.map(cat => CATEGORIES.find(c => c.id === cat)?.name || cat).join(', ');
+        if (!confirm(`Hay categorías sin ejercicios: ${labels}. ¿Querés abrir la instancia de todos modos?`)) return;
     }
     const btn = document.getElementById('saveConfigBtn');
     btn.textContent = 'Guardando…';
     btn.disabled = true;
     try {
-        await DB.saveConfig({ examDurationMinutes: minutes });
+        const competition = currentCompetition();
+        competition.status = newStatus;
+        const [, savedRegistry] = await Promise.all([
+            DB.saveConfig({ examDurationMinutes: minutes }, currentCompetitionId),
+            DB.saveCompetitionRegistry(competitionRegistry)
+        ]);
+        competitionRegistry = savedRegistry;
+        renderCompetitionContext();
         const status = document.getElementById('configStatus');
         status.style.display = 'block';
         setTimeout(() => { status.style.display = 'none'; }, 4000);
-        showToast(`Duración actualizada a ${minutes} minutos.`, 'success');
+        showToast(`Configuración de ${competition.name} guardada.`, 'success');
     } catch (e) {
         showToast('Error al guardar: ' + e.message, 'error');
     } finally {

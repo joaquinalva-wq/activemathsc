@@ -155,6 +155,7 @@
             <div class="brand-bar"></div>
             <div class="hero-badge">📐</div>
             <h1>Active Maths Championship</h1>
+            <p id="welcomeCompetition" style="font-weight:700; color:var(--primary); margin-bottom:0.35rem;"></p>
             <p style="font-size: 1rem; margin-bottom: 1.25rem;">Leé las instrucciones antes de comenzar.</p>
 
             <!-- Tarjeta de identidad del estudiante -->
@@ -214,6 +215,13 @@
             <button id="backToLoginBtn" class="btn btn-secondary mt-4">Volver al inicio</button>
         </div>
 
+        <div id="unavailableScreen" class="glass-card text-center hidden no-questions-error">
+            <span class="error-icon">🔒</span>
+            <h2>Instancia no disponible</h2>
+            <p id="unavailableMessage">Esta competencia todavía no está habilitada.</p>
+            <button id="unavailableBackBtn" class="btn btn-secondary mt-4">Volver al inicio</button>
+        </div>
+
         <!-- ── Pantalla de examen ─────────────────────────────── -->
         <div id="examScreen" class="hidden">
             <div id="progressDots" class="exam-progress"></div>
@@ -252,6 +260,7 @@
         <div id="finishedScreen" class="glass-card hidden text-center">
             <div class="finished-icon">🏆</div>
             <h1>¡Evaluación Completada!</h1>
+            <p id="finishedCompetitionName" style="font-weight:700; color:var(--primary);"></p>
             <p>Tus respuestas fueron enviadas correctamente. Los resultados serán revisados por el equipo docente.</p>
             <div class="finished-details">
                 ✅ Tu entrega quedó registrada. Podés cerrar esta ventana de forma segura.
@@ -278,10 +287,14 @@
     </div>
 
     <script type="module">
-        import { auth, onAuthStateChanged, signOut, DB, CATEGORIES, LEGACY_CATEGORY_MAP } from './js/data.js';
+        import {
+            auth, onAuthStateChanged, signOut, DB, CATEGORIES, LEGACY_CATEGORY_MAP,
+            getCompetitionById
+        } from './js/data.js';
 
         let currentUserData = null;
         let currentUser     = null;
+        let currentCompetition = null;
         let questions       = [];
         let currentQuestionIndex = 0;
         let answers         = [];
@@ -294,6 +307,7 @@
         const mainContainer      = document.getElementById('mainContainer');
         const welcomeScreen      = document.getElementById('welcomeScreen');
         const noQuestionsScreen  = document.getElementById('noQuestionsScreen');
+        const unavailableScreen  = document.getElementById('unavailableScreen');
         const examScreen         = document.getElementById('examScreen');
         const questionText       = document.getElementById('questionText');
         const answerInput        = document.getElementById('answerInput');
@@ -312,8 +326,18 @@
         onAuthStateChanged(auth, async (user) => {
             if (!user) { window.location.href = 'index.html'; return; }
 
-            currentUser     = user;
-            currentUserData = await DB.getUser(user.uid);
+            currentUser = user;
+            const registry = await DB.getCompetitionRegistry();
+            currentCompetition = getCompetitionById(registry, registry.activeCompetitionId);
+            if (!currentCompetition) { window.location.href = 'index.html'; return; }
+
+            const [userData, savedState, eligible, config] = await Promise.all([
+                DB.getUser(user.uid, currentCompetition.id, currentCompetition.profileSourceCompetitionId),
+                DB.getExamState(user.uid, currentCompetition.id),
+                DB.isEligible(user.uid, currentCompetition),
+                DB.getConfig(currentCompetition.id)
+            ]);
+            currentUserData = userData;
             if (!currentUserData) { window.location.href = 'index.html'; return; }
 
             // Normalizar categorías antiguas (ej: "basico_a" → "basico")
@@ -325,21 +349,15 @@
             document.getElementById('userNameDisplay').textContent =
                 `${currentUserData.firstName} ${currentUserData.lastName}`;
             document.getElementById('userCategoryDisplay').textContent =
-                `${catName} · ${currentUserData.school}`;
+                `${currentCompetition.name} · ${catName} · ${currentUserData.school}`;
 
             // Datos en tarjeta de bienvenida
             document.getElementById('welcomeName').textContent =
                 `${currentUserData.firstName} ${currentUserData.lastName}`;
             document.getElementById('welcomeCategory').textContent = catName;
             document.getElementById('welcomeSchool').textContent = currentUserData.school;
-
-            // Cargar todo en paralelo: preguntas, config y estado guardado a la vez
-            const [loadedQs, config, savedState] = await Promise.all([
-                DB.getQuestions(currentUserData.category),
-                DB.getConfig(),
-                DB.getExamState(user.uid)
-            ]);
-            questions = loadedQs;
+            document.getElementById('welcomeCompetition').textContent = currentCompetition.name;
+            document.getElementById('finishedCompetitionName').textContent = currentCompetition.name;
 
             const configuredMinutes = config.examDurationMinutes || 80;
             timeLeft = configuredMinutes * 60;
@@ -354,6 +372,17 @@
                 timerEl.classList.add('hidden-timer');
                 return;
             }
+
+            if (!eligible || currentCompetition.status !== 'open') {
+                document.getElementById('unavailableMessage').textContent = !eligible
+                    ? 'Esta instancia es exclusiva para quienes fueron clasificados en la toma anterior.'
+                    : `${currentCompetition.name} todavía no está habilitada para rendir.`;
+                unavailableScreen.classList.remove('hidden');
+                timerEl.classList.add('hidden-timer');
+                return;
+            }
+
+            questions = await DB.getQuestions(currentUserData.category, currentCompetition.id);
 
             if (questions.length === 0) {
                 // Sin ejercicios: mostrar error claro en vez de crash silencioso
@@ -378,6 +407,9 @@
         document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
         document.getElementById('startBtn').addEventListener('click', () => startExam(false));
         document.getElementById('backToLoginBtn').addEventListener('click', () =>
+            signOut(auth).then(() => { window.location.href = 'index.html'; })
+        );
+        document.getElementById('unavailableBackBtn').addEventListener('click', () =>
             signOut(auth).then(() => { window.location.href = 'index.html'; })
         );
 
@@ -437,7 +469,7 @@
                 await DB.saveExamState(currentUser.uid, {
                     answers, currentQuestionIndex, timeLeft, violationLog,
                     updatedAt: new Date().toISOString()
-                });
+                }, currentCompetition.id);
             } catch (_) { /* fallo silencioso, se reintenta en el próximo guardado */ }
             showSaving(false);
         }
@@ -450,7 +482,7 @@
             DB.saveExamState(currentUser.uid, {
                 answers, currentQuestionIndex, timeLeft, violationLog,
                 updatedAt: new Date().toISOString()
-            });
+            }, currentCompetition.id);
         }
 
         function showSaving(active) {
@@ -582,8 +614,11 @@
                     user:        currentUserData,
                     answers,
                     violationLog,
+                    questionsSnapshot: questions,
+                    competitionId: currentCompetition.id,
+                    competitionName: currentCompetition.name,
                     submittedAt: new Date().toISOString()
-                });
+                }, currentCompetition.id);
 
                 examScreen.classList.add('hidden');
                 document.getElementById('finishedScreen').classList.remove('hidden');
