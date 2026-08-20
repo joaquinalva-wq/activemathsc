@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Active Maths Championship 2025</title>
+    <title>Active Maths Championship</title>
     <link rel="stylesheet" href="css/styles.css">
     <style>
         body { justify-content: center; align-items: center; min-height: 100vh; padding: 2rem 1rem; }
@@ -113,7 +113,7 @@
         <div class="brand">
             <span class="hero-badge">🏆</span>
             <h1>Active Maths Championship</h1>
-            <p>Olimpiadas Matemáticas · Active Learning 2026</p>
+            <p id="competitionName">Olimpiadas Matemáticas · Active Learning</p>
         </div>
 
         <!-- Card principal -->
@@ -124,7 +124,7 @@
             <div id="loginSection">
                 <div style="text-align: center; margin-bottom: 1.5rem;">
                     <div style="display: flex; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem;">
-                        <span class="info-chip">⏱ 80 minutos</span>
+                        <span class="info-chip" id="competitionDuration">⏱ 80 minutos</span>
                         <span class="info-chip">🔐 Acceso seguro</span>
                     </div>
                     <p style="font-size: 0.95rem; margin-bottom: 0;">
@@ -200,12 +200,16 @@
     </div>
 
     <script type="module">
-        import { auth, provider, signInWithPopup, onAuthStateChanged, SCHOOLS, CATEGORIES, LEGACY_CATEGORY_MAP, DB } from './js/data.js';
+        import {
+            auth, provider, signInWithPopup, onAuthStateChanged, signOut,
+            SCHOOLS, CATEGORIES, LEGACY_CATEGORY_MAP, DB, getCompetitionById
+        } from './js/data.js';
 
         const loginSection = document.getElementById('loginSection');
         const profileForm  = document.getElementById('profileForm');
         const loading      = document.getElementById('loading');
         let currentUser    = null;
+        let currentCompetition = null;
 
         // Populate selects
         const schoolSelect = document.getElementById('school');
@@ -223,14 +227,34 @@
                 loginSection.classList.add('hidden');
                 loading.classList.remove('hidden');
 
-                const [userData, examState] = await Promise.all([
-                    DB.getUser(user.uid),
-                    DB.getExamState(user.uid)
+                const registry = await DB.getCompetitionRegistry();
+                currentCompetition = getCompetitionById(registry, registry.activeCompetitionId);
+                if (!currentCompetition) throw new Error('No hay una competencia activa configurada.');
+
+                const [userData, examState, eligible, config] = await Promise.all([
+                    DB.getUser(user.uid, currentCompetition.id, currentCompetition.profileSourceCompetitionId),
+                    DB.getExamState(user.uid, currentCompetition.id),
+                    DB.isEligible(user.uid, currentCompetition),
+                    DB.getConfig(currentCompetition.id)
                 ]);
+
+                document.getElementById('competitionName').textContent = currentCompetition.fullName;
+                document.getElementById('competitionDuration').textContent =
+                    `⏱ ${config.examDurationMinutes || 80} minutos`;
 
                 if (examState) {
                     // Examen ya iniciado o enviado → ir a exam.html
                     window.location.href = 'exam.html';
+                    return;
+                }
+
+                if (currentCompetition.status !== 'open' || !eligible) {
+                    const banner = document.getElementById('loginError');
+                    banner.textContent = !eligible
+                        ? 'Esta instancia es exclusiva para quienes fueron clasificados en la toma anterior.'
+                        : `${currentCompetition.name} todavía no está habilitada para rendir.`;
+                    banner.classList.remove('hidden');
+                    await signOut(auth);
                     return;
                 }
 
@@ -279,7 +303,7 @@
                 registeredAt: new Date().toISOString()
             };
 
-            await DB.saveUser(currentUser.uid, userData);
+            await DB.saveUser(currentUser.uid, userData, currentCompetition.id);
             window.location.href = 'exam.html';
         });
     </script>

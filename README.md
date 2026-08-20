@@ -40,6 +40,8 @@ categoría necesita compartir banco con otra, pero hoy las 4 son independientes.
 
 ## Modelo de datos (Firestore)
 
+La **1.ª toma 2026** conserva sin migraciones el modelo histórico:
+
 | Colección | Quién escribe | Contiene |
 |---|---|---|
 | `users/{uid}` | Estudiante (una vez) | nombre, colegio, categoría |
@@ -48,6 +50,40 @@ categoría necesita compartir banco con otra, pero hoy las 4 son independientes.
 | `questions/{categoria}` | Admin | enunciados (`id`, `text`, `imageUrl` opcional) — **sin** la respuesta correcta |
 | `answer_keys/{categoria}` | Admin | respuesta correcta por `id` de ejercicio |
 | `config/settings` | Admin | duración del examen en minutos |
+
+Las instancias posteriores usan colecciones aisladas por `competitionId`:
+
+| Colección | Contiene |
+|---|---|
+| `competition_users/{competitionId}/users/{uid}` | perfil del estudiante en esa instancia |
+| `competition_exam_states/{competitionId}/states/{uid}` | progreso y tiempo de esa instancia |
+| `competition_submissions/{competitionId}/entries/{uid}` | entrega final |
+| `competition_classifications/{competitionId}/entries/{uid}` | clasificación decidida por el admin |
+| `competition_questions/{competitionId}/categories/{categoria}` | enunciados públicos de esa toma |
+| `competition_answer_keys/{competitionId}/categories/{categoria}` | respuestas, solo para admin |
+
+Esto permite usar ejercicios distintos y consultar resultados, estadísticas y
+clasificados por toma sin modificar los datos históricos.
+
+## Gestión de instancias
+
+El selector superior del panel admin controla todo el panel: resultados,
+estadísticas, ejercicios, clasificados y configuración corresponden siempre a
+la instancia elegida. El botón **Usar como instancia pública** define cuál ven
+los estudiantes.
+
+Cada instancia puede estar en **Borrador**, **Abierta** o **Cerrada**. El flujo
+recomendado es:
+
+1. Elegir la toma y mantenerla en Borrador.
+2. Cargar y revisar ejercicios y respuestas de cada categoría.
+3. Guardar duración y cambiarla a Abierta.
+4. Usarla como instancia pública.
+5. Al finalizar, cambiarla a Cerrada; los datos siguen disponibles en el panel.
+
+La **2.ª toma 2026 · Final** admite exclusivamente a quienes tengan marcada la
+clasificación en la **1.ª toma 2026**. La misma relación ya queda preparada entre
+la primera toma y la final de 2027.
 
 El estudiante nunca recibe `answer_keys` (ni por Firestore ni embebido en el JS):
 la corrección automática se calcula en `admin.html`, que es el único que tiene
@@ -75,7 +111,8 @@ ver más abajo). En su lugar, las imágenes son archivos del propio repositorio:
 2. En el panel admin → pestaña "Ejercicios" → editar el ejercicio → campo
    "Imagen del ejercicio", escribí la ruta exacta (ej. `images/exercises/b1.jpg`).
    La vista previa se actualiza al tipear; si no encuentra el archivo, avisa.
-3. Guardar el ejercicio guarda esa ruta como texto en `questions/{categoría}`
+3. Guardar el ejercicio guarda esa ruta como texto en el documento de preguntas
+   de la instancia seleccionada
    (no es información secreta, así que el estudiante la recibe igual que el
    enunciado, y la ve arriba del problema durante el examen).
 
@@ -85,9 +122,10 @@ vez que se agrega o cambia una imagen para que quede disponible en el sitio.
 ## Reglas de seguridad de Firestore
 
 `firestore.rules` en la raíz tiene las reglas recomendadas:
-- Un estudiante puede **crear** su perfil/entrega una sola vez; no puede editarlos
-  ni borrarlos después (así se garantiza una sola respuesta por cuenta y que no
-  pueda cambiar de categoría a mitad de competencia).
+- Un estudiante solo puede leer los ejercicios de la instancia pública cuando
+  está abierta y solo puede crear su propia entrega.
+- Los datos de cada toma están aislados y las clasificaciones solo las modifica
+  un administrador.
 - `answer_keys` solo lo puede leer/escribir el admin.
 - Las funciones de admin (marcar clasificado, editar ejercicios, borrar una
   entrega para permitir un reintento legítimo) usan la misma lista de emails que
