@@ -1013,7 +1013,7 @@ function renderExerciseStats(subs, catFilter) {
         const qs = getQuestionsForSubmission(sub);
         (sub.answers || []).forEach((ans, i) => {
             const q = qs.find(q => q.id === ans.qId);
-            if (!exMap[ans.qId]) exMap[ans.qId] = { label: `Ej. ${i + 1}`, correct: 0, total: 0, catBase: base };
+            if (!exMap[ans.qId]) exMap[ans.qId] = { label: `Ej. ${i + 1}`, correct: 0, total: 0 };
             exMap[ans.qId].total++;
             if (q && ans.answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim()) {
                 exMap[ans.qId].correct++;
