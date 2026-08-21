@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc, deleteField, FieldPath, writeBatch } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCc6l3nVqTq_rc6gfGgAdV0EfAQANyeDxk",
@@ -21,8 +21,8 @@ export { signInWithPopup, onAuthStateChanged, signOut };
 
 // Cada toma funciona como una competencia independiente. La 1.ª toma 2026
 // conserva exactamente el modelo de documentos original; las tomas nuevas se
-// guardan en colecciones separadas por competencia para no mezclar datos ni
-// exponer ejercicios de instancias futuras.
+// guardan en secciones separadas dentro de las colecciones históricas. Esto
+// mantiene compatibilidad con la configuración original de Firestore.
 export const LEGACY_COMPETITION_ID = "amc-2026-toma-1";
 
 export const DEFAULT_COMPETITIONS = [
@@ -96,6 +96,12 @@ export function normalizeCompetitionRegistry(data = {}) {
 
 export function getCompetitionById(registry, competitionId) {
     return registry?.competitions?.find(c => c.id === competitionId) || null;
+}
+
+function getQuestionDocumentId(category, competitionId) {
+    return competitionId === LEGACY_COMPETITION_ID
+        ? category
+        : `${competitionId}--${category}`;
 }
 
 export const SCHOOLS = [
@@ -212,9 +218,14 @@ export const DB = {
         const competitionStatuses = Object.fromEntries(
             normalized.competitions.map(competition => [competition.id, competition.status])
         );
+        const activeCompetition = getCompetitionById(normalized, normalized.activeCompetitionId);
+        const activeQuestionDocumentIds = CATEGORIES.map(category =>
+            getQuestionDocumentId(category.id, activeCompetition.id)
+        );
         await setDoc(doc(db, "config", "settings"), {
             competitions: normalized.competitions,
             competitionStatuses,
+            activeQuestionDocumentIds,
             activeCompetitionId: normalized.activeCompetitionId,
             updatedAt: new Date().toISOString()
         }, { merge: true });
@@ -225,7 +236,9 @@ export const DB = {
             await setDoc(doc(db, "users", uid), userData, { merge: true });
             return;
         }
-        await setDoc(doc(db, "competition_users", competitionId, "users", uid), userData, { merge: true });
+        await setDoc(doc(db, "exam_states", uid), {
+            competitionProfiles: { [competitionId]: userData }
+        }, { merge: true });
     },
     getUser: async (uid, competitionId = LEGACY_COMPETITION_ID, profileSourceCompetitionId = null) => {
         const legacySnap = await getDoc(doc(db, "users", uid));
@@ -236,28 +249,29 @@ export const DB = {
             return profile;
         };
         if (competitionId === LEGACY_COMPETITION_ID) return legacyProfile();
-        const ownSnap = await getDoc(doc(db, "competition_users", competitionId, "users", uid));
-        if (ownSnap.exists()) return ownSnap.data();
+        const stateSnap = await getDoc(doc(db, "exam_states", uid));
+        const profiles = stateSnap.exists() ? (stateSnap.data().competitionProfiles || {}) : {};
+        if (profiles[competitionId]) return profiles[competitionId];
         if (!profileSourceCompetitionId) return null;
         if (profileSourceCompetitionId === LEGACY_COMPETITION_ID) return legacyProfile();
-        const sourceSnap = await getDoc(doc(db, "competition_users", profileSourceCompetitionId, "users", uid));
-        return sourceSnap.exists() ? sourceSnap.data() : null;
+        return profiles[profileSourceCompetitionId] || null;
     },
     saveExamState: async (uid, state, competitionId = LEGACY_COMPETITION_ID) => {
         if (competitionId === LEGACY_COMPETITION_ID) {
             await setDoc(doc(db, "exam_states", uid), state, { merge: true });
             return;
         }
-        await setDoc(doc(db, "competition_exam_states", competitionId, "states", uid), state, { merge: true });
+        await setDoc(doc(db, "exam_states", uid), {
+            competitionStates: { [competitionId]: state }
+        }, { merge: true });
     },
     getExamState: async (uid, competitionId = LEGACY_COMPETITION_ID) => {
-        const stateRef = competitionId === LEGACY_COMPETITION_ID
-            ? doc(db, "exam_states", uid)
-            : doc(db, "competition_exam_states", competitionId, "states", uid);
-        const snap = await getDoc(stateRef);
+        const snap = await getDoc(doc(db, "exam_states", uid));
         if (!snap.exists()) return null;
         const data = snap.data();
-        if (competitionId !== LEGACY_COMPETITION_ID) return data;
+        if (competitionId !== LEGACY_COMPETITION_ID) {
+            return data.competitionStates?.[competitionId] || null;
+        }
         if (!data.startTime && !data.endTime && !data.finished && !data.answers) return null;
         return data;
     },
@@ -268,8 +282,12 @@ export const DB = {
             return;
         }
         const batch = writeBatch(db);
-        batch.set(doc(db, "competition_submissions", competitionId, "entries", uid), submission);
-        batch.set(doc(db, "competition_exam_states", competitionId, "states", uid), { finished: true }, { merge: true });
+        batch.set(doc(db, "submissions", uid), {
+            competitionSubmissions: { [competitionId]: submission }
+        }, { merge: true });
+        batch.set(doc(db, "exam_states", uid), {
+            competitionStates: { [competitionId]: { finished: true } }
+        }, { merge: true });
         await batch.commit();
     },
     updateSubmission: async (uid, data, competitionId = LEGACY_COMPETITION_ID) => {
@@ -277,31 +295,29 @@ export const DB = {
             await setDoc(doc(db, "submissions", uid), data, { merge: true });
             return;
         }
-        await setDoc(doc(db, "competition_submissions", competitionId, "entries", uid), data, { merge: true });
+        await setDoc(doc(db, "submissions", uid), {
+            competitionSubmissions: { [competitionId]: data }
+        }, { merge: true });
     },
     getSubmissions: async (competitionId = LEGACY_COMPETITION_ID) => {
-        if (competitionId !== LEGACY_COMPETITION_ID) {
-            const [submissionSnap, classificationSnap] = await Promise.all([
-                getDocs(collection(db, "competition_submissions", competitionId, "entries")),
-                getDocs(collection(db, "competition_classifications", competitionId, "entries"))
-            ]);
-            const classifications = new Map();
-            classificationSnap.forEach(d => classifications.set(d.id, d.data()));
-            const scoped = [];
-            submissionSnap.forEach(d => scoped.push({
-                _docId: d.id,
-                ...d.data(),
-                ...(classifications.get(d.id) || {}),
-                competitionId
-            }));
-            return scoped;
-        }
         const snap = await getDocs(collection(db, "submissions"));
         const subs = [];
         snap.forEach(d => {
             const data = d.data();
+            if (competitionId !== LEGACY_COMPETITION_ID) {
+                const submission = data.competitionSubmissions?.[competitionId];
+                if (!submission) return;
+                subs.push({
+                    _docId: d.id,
+                    ...submission,
+                    ...(data.competitionClassifications?.[competitionId] || {}),
+                    competitionId
+                });
+                return;
+            }
             if (!data.submittedAt && !data.answers) return;
-            subs.push({ _docId: d.id, ...data, competitionId });
+            const { competitionSubmissions, competitionClassifications, ...legacySubmission } = data;
+            subs.push({ _docId: d.id, ...legacySubmission, competitionId });
         });
         return subs;
     },
@@ -314,7 +330,9 @@ export const DB = {
             await setDoc(doc(db, "submissions", uid), classification, { merge: true });
             return;
         }
-        await setDoc(doc(db, "competition_classifications", competitionId, "entries", uid), classification, { merge: true });
+        await setDoc(doc(db, "submissions", uid), {
+            competitionClassifications: { [competitionId]: classification }
+        }, { merge: true });
     },
     isEligible: async (uid, competition) => {
         if (!competition?.restrictedToClassified) return true;
@@ -324,8 +342,8 @@ export const DB = {
             const snap = await getDoc(doc(db, "submissions", uid));
             return snap.exists() && snap.data().classified === true;
         }
-        const snap = await getDoc(doc(db, "competition_classifications", qualifierId, "entries", uid));
-        return snap.exists() && snap.data().classified === true;
+        const snap = await getDoc(doc(db, "submissions", uid));
+        return snap.exists() && snap.data().competitionClassifications?.[qualifierId]?.classified === true;
     },
     // Para el examen del estudiante: solo enunciado, NUNCA la respuesta correcta.
     // La clave de respuestas vive en una colección separada (answer_keys) que las
@@ -335,9 +353,7 @@ export const DB = {
         const cat = LEGACY_CATEGORY_MAP[category] || category;
         const baseCategory = CATEGORY_BASE_MAP[cat] || cat;
         try {
-            const questionRef = competitionId === LEGACY_COMPETITION_ID
-                ? doc(db, "questions", baseCategory)
-                : doc(db, "competition_questions", competitionId, "categories", baseCategory);
+            const questionRef = doc(db, "questions", getQuestionDocumentId(baseCategory, competitionId));
             const snap = await getDoc(questionRef);
             if (snap.exists()) {
                 const data = snap.data();
@@ -354,9 +370,7 @@ export const DB = {
         const baseCategory = CATEGORY_BASE_MAP[cat] || cat;
         let qs = null, answers = null;
         try {
-            const questionRef = competitionId === LEGACY_COMPETITION_ID
-                ? doc(db, "questions", baseCategory)
-                : doc(db, "competition_questions", competitionId, "categories", baseCategory);
+            const questionRef = doc(db, "questions", getQuestionDocumentId(baseCategory, competitionId));
             const qSnap = await getDoc(questionRef);
             if (qSnap.exists()) {
                 const data = qSnap.data();
@@ -366,9 +380,7 @@ export const DB = {
             }
         } catch (_) { /* usar default */ }
         try {
-            const answerRef = competitionId === LEGACY_COMPETITION_ID
-                ? doc(db, "answer_keys", baseCategory)
-                : doc(db, "competition_answer_keys", competitionId, "categories", baseCategory);
+            const answerRef = doc(db, "answer_keys", getQuestionDocumentId(baseCategory, competitionId));
             const aSnap = await getDoc(answerRef);
             if (aSnap.exists()) {
                 const data = aSnap.data();
@@ -402,18 +414,43 @@ export const DB = {
             await setDoc(doc(db, "answer_keys", baseCategory), { answers, updatedAt }, { merge: true });
             return;
         }
-        await setDoc(doc(db, "competition_questions", competitionId, "categories", baseCategory), { questions: qs, updatedAt });
-        await setDoc(doc(db, "competition_answer_keys", competitionId, "categories", baseCategory), { answers, updatedAt });
+        const documentId = getQuestionDocumentId(baseCategory, competitionId);
+        await setDoc(doc(db, "questions", documentId), { questions: qs, updatedAt });
+        await setDoc(doc(db, "answer_keys", documentId), { answers, updatedAt });
     },
     deleteSubmission: async (uid, competitionId = LEGACY_COMPETITION_ID) => {
         if (competitionId !== LEGACY_COMPETITION_ID) {
-            await deleteDoc(doc(db, "competition_submissions", competitionId, "entries", uid));
-            await deleteDoc(doc(db, "competition_exam_states", competitionId, "states", uid));
-            await deleteDoc(doc(db, "competition_classifications", competitionId, "entries", uid));
+            try {
+                await updateDoc(doc(db, "submissions", uid),
+                    new FieldPath("competitionSubmissions", competitionId), deleteField(),
+                    new FieldPath("competitionClassifications", competitionId), deleteField()
+                );
+            } catch (_) { /* ya no existe */ }
+            try {
+                await updateDoc(doc(db, "exam_states", uid),
+                    new FieldPath("competitionStates", competitionId), deleteField()
+                );
+            } catch (_) { /* ya no existe */ }
             return;
         }
-        await deleteDoc(doc(db, "submissions", uid));
-        await deleteDoc(doc(db, "exam_states", uid));
+        const submissionFields = [
+            "user", "answers", "violationLog", "submittedAt", "score", "correctCount",
+            "details", "classified", "classifiedAt", "questionsSnapshot", "competitionName", "competitionId"
+        ];
+        const stateFields = [
+            "currentQuestion", "currentQuestionIndex", "answers", "startTime", "endTime",
+            "timeLeft", "violationLog", "updatedAt", "finished"
+        ];
+        try {
+            await updateDoc(doc(db, "submissions", uid), Object.fromEntries(
+                submissionFields.map(field => [field, deleteField()])
+            ));
+        } catch (_) { /* ya no existe */ }
+        try {
+            await updateDoc(doc(db, "exam_states", uid), Object.fromEntries(
+                stateFields.map(field => [field, deleteField()])
+            ));
+        } catch (_) { /* ya no existe */ }
     },
     getConfig: async (competitionId = LEGACY_COMPETITION_ID) => {
         try {
