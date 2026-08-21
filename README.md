@@ -51,26 +51,27 @@ La **1.ª toma 2026** conserva sin migraciones el modelo histórico:
 | `answer_keys/{categoria}` | Admin | respuesta correcta por `id` de ejercicio |
 | `config/settings` | Admin | duración del examen en minutos |
 
-Las instancias posteriores usan colecciones aisladas por `competitionId`:
+Las instancias posteriores reutilizan las colecciones originales y guardan cada
+toma en un campo separado por `competitionId`:
 
-| Colección | Contiene |
+| Ubicación | Contiene |
 |---|---|
-| `competition_users/{competitionId}/users/{uid}` | perfil del estudiante en esa instancia |
-| `competition_exam_states/{competitionId}/states/{uid}` | progreso y tiempo de esa instancia |
-| `competition_submissions/{competitionId}/entries/{uid}` | entrega final |
-| `competition_classifications/{competitionId}/entries/{uid}` | clasificación decidida por el admin |
-| `competition_questions/{competitionId}/categories/{categoria}` | enunciados públicos de esa toma |
-| `competition_answer_keys/{competitionId}/categories/{categoria}` | respuestas, solo para admin |
+| `exam_states/{uid}.competitionProfiles` | perfil por toma |
+| `exam_states/{uid}.competitionStates` | progreso y tiempo por toma |
+| `submissions/{uid}.competitionSubmissions` | entrega final por toma |
+| `submissions/{uid}.competitionClassifications` | clasificación decidida por el admin |
+| `questions/{competitionId}--{categoria}` | enunciados de esa toma |
+| `answer_keys/{competitionId}--{categoria}` | respuestas, solo para admin |
 
 Esto permite usar ejercicios distintos y consultar resultados, estadísticas y
-clasificados por toma sin modificar los datos históricos.
+clasificados por toma sin modificar los datos históricos ni depender de nuevas
+colecciones de Firestore.
 
 ## Gestión de instancias
 
-El selector superior del panel admin controla todo el panel: resultados,
+El selector **Toma** del encabezado del panel admin controla todo el panel: resultados,
 estadísticas, ejercicios, clasificados y configuración corresponden siempre a
-la instancia elegida. El botón **Usar como instancia pública** define cuál ven
-los estudiantes.
+la instancia elegida. En Configuración se puede indicar cuál ven los estudiantes.
 
 Cada instancia puede estar en **Borrador**, **Abierta** o **Cerrada**. El flujo
 recomendado es:

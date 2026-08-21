@@ -180,20 +180,12 @@
             </div>
         </div>
         <div class="admin-header-right">
+            <div class="competition-switcher">
+                <label for="competitionSelector">Toma</label>
+                <select id="competitionSelector" aria-label="Seleccionar toma"></select>
+            </div>
             <span class="admin-email" id="adminEmail"></span>
             <button id="logoutBtn" class="btn btn-secondary btn-sm">Cerrar Sesión</button>
-        </div>
-    </div>
-
-    <div class="no-print" style="max-width:1200px; margin:1rem auto 0; padding:0 1rem;">
-        <div class="glass-card" style="padding:1rem 1.15rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-            <div style="flex:1; min-width:260px;">
-                <label for="competitionSelector" style="display:block; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:800; margin-bottom:0.35rem;">Competencia / instancia</label>
-                <select id="competitionSelector" style="margin:0; font-weight:700;"></select>
-            </div>
-            <span id="competitionStatusBadge" class="badge badge-partial">Borrador</span>
-            <button id="setActiveCompetitionBtn" class="btn btn-secondary btn-sm">Usar como instancia pública</button>
-            <span id="activeCompetitionLabel" style="width:100%; font-size:0.8rem; color:var(--text-muted);"></span>
         </div>
     </div>
 
@@ -433,6 +425,14 @@
                     <p id="configEligibility" style="font-size:0.82rem; margin-top:0.6rem; margin-bottom:0; color:var(--text-muted);"></p>
                 </div>
 
+                <label class="active-instance-option" for="configMakeActive">
+                    <input type="checkbox" id="configMakeActive">
+                    <span>
+                        <strong>Usar esta toma para los estudiantes</strong>
+                        <small id="configActiveStatus">Define la evaluación que se abre desde el ingreso principal.</small>
+                    </span>
+                </label>
+
                 <div class="form-group">
                     <label>Duración de la evaluación</label>
                     <div style="display:flex; align-items:center; gap:0.9rem; margin-top:0.25rem;">
@@ -493,6 +493,8 @@ let currentExCat     = 'basico';
 let editingIdx       = -1;  // index of exercise being edited
 let competitionRegistry = null;
 let currentCompetitionId = null;
+let activeTabName = 'results';
+let loadGeneration = 0;
 
 const ALLOWED_EMAILS = [
     'joaquin.alva@activelearning.com.ar',
@@ -561,28 +563,25 @@ function initCompetitionSelector() {
     selector.addEventListener('change', async () => {
         currentCompetitionId = selector.value;
         editingIdx = -1;
-        await loadData();
-    });
-    document.getElementById('setActiveCompetitionBtn').addEventListener('click', async () => {
-        competitionRegistry.activeCompetitionId = currentCompetitionId;
-        competitionRegistry = await DB.saveCompetitionRegistry(competitionRegistry);
-        renderCompetitionContext();
-        showToast(`${currentCompetition().name} es ahora la instancia pública.`, 'success');
+        selector.disabled = true;
+        try {
+            await loadData();
+        } finally {
+            selector.disabled = false;
+        }
     });
     renderCompetitionContext();
 }
 
 function renderCompetitionContext() {
     const competition = currentCompetition();
-    const statusNames = { draft: 'Borrador', open: 'Abierta', closed: 'Cerrada' };
-    const badge = document.getElementById('competitionStatusBadge');
-    badge.textContent = statusNames[competition.status] || competition.status;
-    badge.className = `badge ${competition.status === 'open' ? 'badge-correct' : (competition.status === 'closed' ? 'badge-incorrect' : 'badge-partial')}`;
     const isActive = competitionRegistry.activeCompetitionId === competition.id;
-    document.getElementById('setActiveCompetitionBtn').disabled = isActive;
-    document.getElementById('activeCompetitionLabel').textContent = isActive
-        ? `✓ Esta es la instancia que ven los estudiantes. ${competition.status !== 'open' ? 'Mientras no esté abierta, no podrán comenzar.' : ''}`
-        : `Instancia pública actual: ${getCompetitionById(competitionRegistry, competitionRegistry.activeCompetitionId)?.name || '—'}`;
+    const activeCheckbox = document.getElementById('configMakeActive');
+    activeCheckbox.checked = isActive;
+    activeCheckbox.disabled = isActive;
+    document.getElementById('configActiveStatus').textContent = isActive
+        ? `Esta es la toma que ven los estudiantes${competition.status !== 'open' ? '; permanecerá bloqueada hasta que la abras' : ''}.`
+        : `La toma visible actualmente es ${getCompetitionById(competitionRegistry, competitionRegistry.activeCompetitionId)?.name || '—'}.`;
     document.getElementById('configCompetitionTitle').textContent = `Configuración · ${competition.name}`;
     document.getElementById('configCompetitionStatus').value = competition.status;
     document.getElementById('configEligibility').textContent = competition.restrictedToClassified
@@ -592,6 +591,7 @@ function renderCompetitionContext() {
 
 // ══ Data loading ════════════════════════════════
 async function loadData() {
+    const generation = ++loadGeneration;
     loadingMsg.classList.remove('hidden');
     try {
         const [questionEntries, config, submissions] = await Promise.all([
@@ -599,6 +599,7 @@ async function loadData() {
             DB.getConfig(currentCompetitionId),
             DB.getSubmissions(currentCompetitionId)
         ]);
+        if (generation !== loadGeneration) return;
         loadedQuestions = Object.fromEntries(questionEntries);
 
         // Pre-fill config tab
@@ -650,8 +651,11 @@ function gradeSubmission(sub) {
 }
 
 function showTabs() {
+    document.querySelectorAll('.tab-btn').forEach(button =>
+        button.classList.toggle('active', button.dataset.tab === activeTabName)
+    );
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-    document.getElementById('tab-results').classList.remove('hidden');
+    document.getElementById('tab-' + activeTabName).classList.remove('hidden');
 }
 
 function updateCounts() {
@@ -702,14 +706,11 @@ function rebuildExerciseFilter() {
 // ══ Tab navigation ══════════════════════════════
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tabName = btn.dataset.tab;
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
-        document.getElementById('tab-' + tabName).classList.remove('hidden');
-        if (tabName === 'stats')      renderStats();
-        if (tabName === 'exercises')  renderExerciseList();
-        if (tabName === 'classified') renderClassified();
+        activeTabName = btn.dataset.tab;
+        showTabs();
+        if (activeTabName === 'stats')      renderStats();
+        if (activeTabName === 'exercises')  renderExerciseList();
+        if (activeTabName === 'classified') renderClassified();
     });
 });
 
@@ -1550,6 +1551,9 @@ document.getElementById('saveConfigBtn').addEventListener('click', async () => {
     try {
         const competition = currentCompetition();
         competition.status = newStatus;
+        if (document.getElementById('configMakeActive').checked) {
+            competitionRegistry.activeCompetitionId = currentCompetitionId;
+        }
         const [, savedRegistry] = await Promise.all([
             DB.saveConfig({ examDurationMinutes: minutes }, currentCompetitionId),
             DB.saveCompetitionRegistry(competitionRegistry)

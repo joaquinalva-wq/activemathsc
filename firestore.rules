@@ -24,15 +24,11 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
-    function isActiveCompetition(competitionId) {
+    function canReadQuestionDocument(questionId) {
       let settings = get(/databases/$(database)/documents/config/settings).data;
-      return settings.activeCompetitionId == competitionId;
-    }
-
-    function isActiveOpenCompetition(competitionId) {
-      let settings = get(/databases/$(database)/documents/config/settings).data;
-      return isActiveCompetition(competitionId) &&
-             settings.competitionStatuses[competitionId] == 'open';
+      return questionId in ['basico', 'intermedio', 'avanzado', 'pitagoras'] ||
+             (settings.competitionStatuses[settings.activeCompetitionId] == 'open' &&
+              questionId in settings.activeQuestionDocumentIds);
     }
 
     // Perfil del estudiante. Puede actualizarse solo si el estudiante aún no
@@ -69,44 +65,16 @@ service cloud.firestore {
       allow update: if isAdmin() ||
                        (isOwn(uid) &&
                         request.resource.data.get('classified', false) == resource.data.get('classified', false) &&
-                        request.resource.data.get('classifiedAt', null) == resource.data.get('classifiedAt', null));
+                        request.resource.data.get('classifiedAt', null) == resource.data.get('classifiedAt', null) &&
+                        request.resource.data.get('competitionClassifications', {}) ==
+                          resource.data.get('competitionClassifications', {}));
       allow delete: if isAdmin();
-    }
-
-    // Datos de las tomas nuevas. Cada competencia tiene documentos propios;
-    // esto impide mezclar perfiles, estados, entregas y clasificaciones.
-    match /competition_users/{competitionId}/users/{uid} {
-      allow read: if isOwn(uid) || isAdmin();
-      allow create, update: if isOwn(uid) && isActiveOpenCompetition(competitionId);
-      allow delete: if isAdmin();
-    }
-
-    match /competition_exam_states/{competitionId}/states/{uid} {
-      allow read: if isOwn(uid) || isAdmin();
-      allow create: if isOwn(uid) && isActiveOpenCompetition(competitionId);
-      allow update: if isAdmin() ||
-                       (isOwn(uid) && isActiveCompetition(competitionId) &&
-                        (resource.data.get('finished', false) != true ||
-                         request.resource.data.get('finished', false) == true));
-      allow delete: if isAdmin();
-    }
-
-    match /competition_submissions/{competitionId}/entries/{uid} {
-      allow read: if isOwn(uid) || isAdmin();
-      allow create: if isOwn(uid) && isActiveCompetition(competitionId) &&
-                       existsAfter(/databases/$(database)/documents/competition_exam_states/$(competitionId)/states/$(uid));
-      allow update, delete: if isAdmin();
-    }
-
-    match /competition_classifications/{competitionId}/entries/{uid} {
-      allow read: if isOwn(uid) || isAdmin();
-      allow write: if isAdmin();
     }
 
     // Enunciados (sin respuesta correcta): cualquier usuario autenticado los
     // puede leer durante el examen; solo el admin los edita.
-    match /questions/{category} {
-      allow read: if request.auth != null;
+    match /questions/{questionId} {
+      allow read: if isAdmin() || (request.auth != null && canReadQuestionDocument(questionId));
       allow write: if isAdmin();
     }
 
@@ -115,18 +83,6 @@ service cloud.firestore {
     // abran las herramientas de desarrollador, no pueden ver la respuesta
     // correcta antes de responder.
     match /answer_keys/{category} {
-      allow read, write: if isAdmin();
-    }
-
-    // Enunciados y claves de las tomas nuevas se aíslan por competencia. Los
-    // estudiantes solo pueden leer enunciados de la instancia pública abierta.
-    match /competition_questions/{competitionId}/categories/{category} {
-      allow read: if isAdmin() ||
-                     (request.auth != null && isActiveOpenCompetition(competitionId));
-      allow write: if isAdmin();
-    }
-
-    match /competition_answer_keys/{competitionId}/categories/{category} {
       allow read, write: if isAdmin();
     }
 

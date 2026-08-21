@@ -155,7 +155,6 @@
             <div class="brand-bar"></div>
             <div class="hero-badge">📐</div>
             <h1>Active Maths Championship</h1>
-            <p id="welcomeCompetition" style="font-weight:700; color:var(--primary); margin-bottom:0.35rem;"></p>
             <p style="font-size: 1rem; margin-bottom: 1.25rem;">Leé las instrucciones antes de comenzar.</p>
 
             <!-- Tarjeta de identidad del estudiante -->
@@ -260,7 +259,6 @@
         <div id="finishedScreen" class="glass-card hidden text-center">
             <div class="finished-icon">🏆</div>
             <h1>¡Evaluación Completada!</h1>
-            <p id="finishedCompetitionName" style="font-weight:700; color:var(--primary);"></p>
             <p>Tus respuestas fueron enviadas correctamente. Los resultados serán revisados por el equipo docente.</p>
             <div class="finished-details">
                 ✅ Tu entrega quedó registrada. Podés cerrar esta ventana de forma segura.
@@ -349,15 +347,13 @@
             document.getElementById('userNameDisplay').textContent =
                 `${currentUserData.firstName} ${currentUserData.lastName}`;
             document.getElementById('userCategoryDisplay').textContent =
-                `${currentCompetition.name} · ${catName} · ${currentUserData.school}`;
+                `${catName} · ${currentUserData.school}`;
 
             // Datos en tarjeta de bienvenida
             document.getElementById('welcomeName').textContent =
                 `${currentUserData.firstName} ${currentUserData.lastName}`;
             document.getElementById('welcomeCategory').textContent = catName;
             document.getElementById('welcomeSchool').textContent = currentUserData.school;
-            document.getElementById('welcomeCompetition').textContent = currentCompetition.name;
-            document.getElementById('finishedCompetitionName').textContent = currentCompetition.name;
 
             const configuredMinutes = config.examDurationMinutes || 80;
             timeLeft = configuredMinutes * 60;
